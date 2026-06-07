@@ -1,0 +1,19 @@
+name: text_data_detector_flutter_example
+description: Flutter example for the text_data_detector package.
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  text_data_detector:
+    path: ../../text_data_detector
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

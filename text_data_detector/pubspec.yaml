@@ -1,0 +1,27 @@
+name: text_data_detector
+description: A pure Dart detector for URLs, email addresses, phone numbers, and custom text patterns.
+version: 0.0.1
+
+repository: https://github.com/DaniiShi/text_data_detector/tree/main/text_data_detector
+issue_tracker: https://github.com/DaniiShi/text_data_detector/issues
+homepage: https://github.com/DaniiShi/text_data_detector
+documentation: https://github.com/DaniiShi/text_data_detector#readme
+
+topics:
+  - text-detection
+  - url
+  - email
+  - phone
+  - parser
+
+environment:
+  sdk: ^3.0.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
+
+
+screenshots:
+  - description: Example Flutter.
+    path: screenshots/flutter_example.png

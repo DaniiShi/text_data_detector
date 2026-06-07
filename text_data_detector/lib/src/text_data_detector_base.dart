@@ -1,0 +1,14 @@
+export 'data_detector/data_detector.dart';
+export 'data_detector/data_detector_match.dart';
+export 'data_detector/data_detector_options.dart';
+export 'data_detector/data_detector_rule.dart';
+export 'data_detector/string_data_detector_extension.dart';
+export 'detectors/email/email_detector.dart';
+export 'detectors/email/email_detector_options.dart';
+export 'detectors/phone/phone_detector.dart';
+export 'detectors/phone/phone_detector_options.dart';
+export 'detectors/url/url_detector.dart';
+export 'detectors/url/url_detector_options.dart';
+export 'host/host_normalizer.dart';
+export 'host/host_processor.dart';
+export 'host/host_syntax_validator.dart';
