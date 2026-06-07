@@ -288,26 +288,4 @@ The digit limits can be adjusted with `PhoneDetectorOptions.minDigits` and
 The runtime does not read or parse a PSL text file during detection. The current
 implementation uses generated Dart data bucketed by TLD, which keeps the lookup
 path simple and allocation-light. The seed data is intentionally small in this
-early implementation; the intended production path is to generate
-`lib/src/psl/generated/public_suffix_data.g.dart` from the upstream PSL.
-
-## Roadmap
-
-v1:
-
-- Link detection.
-- Email detection.
-- Strict and loose phone detection.
-- Custom detector registration.
-- Configurable match weights.
-- Generated PSL data.
-- Link and email normalization.
-- Stable text ranges.
-- Benchmarks.
-
-v2:
-
-- Optional built-in mention and hashtag detectors.
-- Date, money, measurement, and flight-number detectors.
-- Locale-aware parsing.
-- Batch or isolate-based detection for long text.
+early implementation.
