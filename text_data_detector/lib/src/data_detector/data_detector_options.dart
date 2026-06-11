@@ -29,7 +29,8 @@ final class DataDetectorOptions {
   ///
   /// Higher weight wins. If weights are equal, the longer range wins. Built-in
   /// rules in `DataDetector.baseRules` get default weights unless
-  /// overridden here: email 100, link 90, phone 80. Custom match types default
-  /// to 0 unless a weight is provided here.
+  /// overridden here: email 100, link 90, calendar 85, phone 80. Calendar gets
+  /// this default only when `CalendarEventDetector` is explicitly added.
+  /// Custom match types default to 0 unless a weight is provided here.
   final Map<DataMatchType, int> matchWeights;
 }

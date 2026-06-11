@@ -42,11 +42,19 @@ final class _DetectorScreenState extends State<DetectorScreen> {
     text: 'Visit example.com or https://flutter.dev',
   );
   final _detector = DataDetector(
-    additionalRules: const [MentionDetector(), HashtagDetector()],
+    additionalRules: const [
+      CalendarEventDetector(),
+      MentionDetector(),
+      HashtagDetector(),
+    ],
     options: DataDetectorOptions(
       linkOptions: const LinkDetectorOptions(allowCustomSchemes: true),
       phoneOptions: const PhoneDetectorOptions(mode: PhoneDetectionMode.loose),
-      matchWeights: {mentionType: 200, hashtagType: 90},
+      matchWeights: {
+        mentionType: 200,
+        hashtagType: 90,
+        DataMatchType.calendarEvent: 70,
+      },
     ),
   );
   final _messages = <ClassifiedMessage>[];
@@ -61,6 +69,8 @@ final class _DetectorScreenState extends State<DetectorScreen> {
     'Release notes: https://example.com:8443/releases?q=stable',
     'Deep links: tg://resolve?domain=test and myapp://profile/123',
     'Ping @alice about #dart and #flutter',
+    'Meet tomorrow at 18:00 or June 11, 2026 at 6 PM',
+    'Office hours: 11.06.2026 18:00-19:00',
   ];
 
   @override

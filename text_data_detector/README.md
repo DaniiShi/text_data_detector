@@ -1,6 +1,6 @@
 ﻿## text_data_detector
 
-A pure Dart detector for extracting links, email addresses, phone numbers, and custom patterns from plain text.
+A pure Dart detector for extracting links, email addresses, phone numbers, calendar events, and custom patterns from plain text.
 
 It is useful when you need to build chat messages, rich text, previews, clickable links, or any feature that needs stable text ranges without relying on platform-specific APIs.
 
@@ -8,6 +8,7 @@ Inspired by system data detector APIs such as iOS NSDataDetector, but implemente
 
 ## Features
 Detects links, email addresses, and phone numbers.
+Provides an opt-in calendar event detector for dates, times, and simple ranges.
 Returns stable start / end ranges for the original text.
 Provides normalized values such as https://example.com or Punycode-normalized IDN domains.
 Supports Unicode and IDN domains.
@@ -81,6 +82,16 @@ There is also a string extension for one-off scans:
 
 ```dart
 final matches = 'Open example.com'.dataDetectorMatches();
+
+final calendarMatches = 'Meet tomorrow at 18:00'.dataDetectorMatches(
+  additionalRules: [
+    CalendarEventDetector(
+      options: CalendarEventDetectorOptions(
+        referenceDate: DateTime(2026, 6, 11),
+      ),
+    ),
+  ],
+);
 ```
 
 `DataDetectorMatch` includes the original string range, original text,
@@ -96,15 +107,65 @@ match.value;
 match.uri;
 match.emailAddress;
 match.phoneNumber;
+match.calendarEvent;
 ```
 
 `start` and `end` are offsets into the original Dart string. `end` is exclusive,
 matching `String.substring(start, end)`.
 
+## Calendar Events
+
+Calendar event detection is opt-in because date and time text has more false
+positive risk than links or email addresses:
+
+```dart
+final detector = DataDetector(
+  additionalRules: [
+    CalendarEventDetector(
+      options: CalendarEventDetectorOptions(
+        referenceDate: DateTime(2026, 6, 11),
+        numericDateOrder: NumericDateOrder.dayMonthYear,
+      ),
+    ),
+  ],
+);
+
+final matches = detector.matches('Meet tomorrow at 18:00');
+```
+
+This returns one `DataMatchType.calendarEvent` match with:
+
+```dart
+match.text; // tomorrow at 18:00
+match.normalizedText; // 2026-06-12T18:00:00
+match.calendarEvent?.start; // DateTime(2026, 6, 12, 18)
+```
+
+The default MVP detector supports dot/slash numeric dates, English month-name
+dates, `today` / `tomorrow` / `yesterday`, explicit times like `18:00` or
+`6:30pm`, simple time ranges, and nearby date + time merges. Dash-separated
+numeric dates are not enabled by default to avoid conflicts with phone-like
+text. Time-only matches are normalized with `referenceDate`, and ranges use
+`start/end` ISO text such as
+`2026-06-11T18:00:00/2026-06-11T19:00:00`.
+
+For custom calendar syntax, replace or extend the pattern pipeline:
+
+```dart
+final customOnly = CalendarEventDetector.custom(
+  patterns: [MyCalendarPattern()],
+);
+
+final extended = CalendarEventDetector.extended(
+  additionalPatterns: [MyRussianRelativeDatePattern()],
+);
+```
+
 ## Custom Detection
 
 `DataMatchType` is a small value object, so applications can define their own
-types and rules next to the built-in link, email, and phone rules.
+types and rules next to the built-in link, email, phone, and calendar event
+rules.
 
 `DataDetector` has two rule lists:
 

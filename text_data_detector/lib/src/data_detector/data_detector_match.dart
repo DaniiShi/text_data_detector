@@ -1,3 +1,5 @@
+import '../detectors/calendar/calendar_event_value.dart';
+
 /// Stable match type identifier.
 ///
 /// Built-in types are exposed as static constants. Custom detectors can define
@@ -15,11 +17,15 @@ final class DataMatchType {
   /// Phone number match.
   static const phoneNumber = DataMatchType('phoneNumber');
 
+  /// Calendar event match, including dates, times, and simple ranges.
+  static const calendarEvent = DataMatchType('calendarEvent');
+
   /// All built-in match types.
   static final Set<DataMatchType> all = Set.unmodifiable({
     link,
     emailAddress,
     phoneNumber,
+    calendarEvent,
   });
 
   /// Human-readable type name, useful for logging and UI fallbacks.
@@ -89,6 +95,15 @@ final class DataDetectorMatch {
   /// Normalized phone number for phone matches, or `null` otherwise.
   String? get phoneNumber {
     return type == DataMatchType.phoneNumber ? normalizedText : null;
+  }
+
+  /// Structured calendar event value for calendar event matches.
+  CalendarEventValue? get calendarEvent {
+    final typedValue = value;
+    return type == DataMatchType.calendarEvent &&
+            typedValue is CalendarEventValue
+        ? typedValue
+        : null;
   }
 
   @override

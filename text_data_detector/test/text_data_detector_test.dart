@@ -654,6 +654,10 @@ void main() {
       expect(detector.matches('ignore 79995551122 and 9995551122'), isEmpty);
     });
 
+    test('rejects dot-separated numbers as phones', () {
+      expect(detector.matches('date 11.06.2026'), isEmpty);
+    });
+
     test('detects loose phones by digit count', () async {
       final looseDetector = DataDetector(
         options: const DataDetectorOptions(
@@ -687,6 +691,16 @@ void main() {
           normalizedText: '+19995551122',
         ),
       ]);
+    });
+
+    test('rejects dot-separated numbers as loose phones', () async {
+      final looseDetector = DataDetector(
+        options: const DataDetectorOptions(
+          phoneOptions: PhoneDetectorOptions(mode: PhoneDetectionMode.loose),
+        ),
+      );
+
+      expect(looseDetector.matches('date 11.06.2026'), isEmpty);
     });
 
     test('uses custom loose phone digit limits', () async {
@@ -938,6 +952,167 @@ void main() {
         detector.matches('date 2026-06-06, ssn 123-45-6789, id x+19995551122'),
         isEmpty,
       );
+    });
+
+    group('CalendarEventDetector', () {
+      final referenceDate = DateTime(2026, 6, 11);
+
+      late DataDetector calendarDetector;
+
+      setUp(() {
+        calendarDetector = DataDetector(
+          baseRules: const [],
+          additionalRules: [
+            CalendarEventDetector(
+              options: CalendarEventDetectorOptions(
+                referenceDate: referenceDate,
+              ),
+            ),
+          ],
+        );
+      });
+
+      test('is opt-in and not enabled by default', () {
+        expect(detector.matches('Meet tomorrow at 18:00'), isEmpty);
+      });
+
+      test('does not detect dash-separated dates by default', () {
+        expect(calendarDetector.matches('Meet on 2026-06-11.'), isEmpty);
+        expect(calendarDetector.matches('Meet on 11-06-2026.'), isEmpty);
+      });
+
+      test('can detect ISO dates when the ISO pattern is explicitly enabled',
+          () {
+        final isoDetector = DataDetector(
+          baseRules: const [],
+          additionalRules: [
+            CalendarEventDetector.custom(
+              options: CalendarEventDetectorOptions(
+                referenceDate: referenceDate,
+              ),
+              patterns: const [IsoDatePattern()],
+            ),
+          ],
+        );
+
+        final match = isoDetector.matches('Meet on 2026-06-11.').single;
+
+        expect(match.type, DataMatchType.calendarEvent);
+        expect(match.text, '2026-06-11');
+        expect(match.normalizedText, '2026-06-11');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 11),
+            hasDate: true,
+            isAllDay: true,
+          ),
+        );
+      });
+
+      test('detects numeric dates using configured date order', () {
+        final dayFirst = calendarDetector.matches('Meet 01/02/2026').single;
+        final monthFirst = DataDetector(
+          baseRules: const [],
+          additionalRules: [
+            CalendarEventDetector(
+              options: CalendarEventDetectorOptions(
+                referenceDate: referenceDate,
+                numericDateOrder: NumericDateOrder.monthDayYear,
+              ),
+            ),
+          ],
+        ).matches('Meet 01/02/2026').single;
+
+        expect(dayFirst.normalizedText, '2026-02-01');
+        expect(monthFirst.normalizedText, '2026-01-02');
+      });
+
+      test('detects English month-name dates', () {
+        final matches = calendarDetector.matches(
+          'Meet June 11, 2026 and 12 Jun 2026.',
+        );
+
+        expect(matches.map((match) => match.normalizedText), [
+          '2026-06-11',
+          '2026-06-12',
+        ]);
+      });
+
+      test('resolves relative date plus time into one event', () {
+        final match = calendarDetector.matches('Meet tomorrow at 18:00').single;
+
+        expect(match.text, 'tomorrow at 18:00');
+        expect(match.normalizedText, '2026-06-12T18:00:00');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 12, 18),
+            hasDate: true,
+            hasTime: true,
+          ),
+        );
+      });
+
+      test('detects time-only with reference date', () {
+        final match = calendarDetector.matches('Meet at 6:30pm').single;
+
+        expect(match.text, '6:30pm');
+        expect(match.normalizedText, '2026-06-11T18:30:00');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 11, 18, 30),
+            hasTime: true,
+          ),
+        );
+      });
+
+      test('does not treat bare numbers as time', () {
+        expect(calendarDetector.matches('Meet at 6'), isEmpty);
+      });
+
+      test('detects simple time ranges', () {
+        final match = calendarDetector.matches('Slot 18:00 - 19:00').single;
+
+        expect(match.text, '18:00 - 19:00');
+        expect(
+          match.normalizedText,
+          '2026-06-11T18:00:00/2026-06-11T19:00:00',
+        );
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 11, 18),
+            end: DateTime(2026, 6, 11, 19),
+            duration: const Duration(hours: 1),
+            hasTime: true,
+          ),
+        );
+      });
+
+      test('merges dates with following time ranges', () {
+        final match =
+            calendarDetector.matches('Meet 11.06.2026 18:00-19:00').single;
+
+        expect(match.text, '11.06.2026 18:00-19:00');
+        expect(
+          match.normalizedText,
+          '2026-06-11T18:00:00/2026-06-11T19:00:00',
+        );
+        expect(match.calendarEvent?.hasDate, isTrue);
+        expect(match.calendarEvent?.hasTime, isTrue);
+      });
+
+      test('avoids common numeric false positives', () {
+        expect(
+          calendarDetector.matches(
+            'version 1.2.3 Flutter 3.32.1 price 12.50 '
+            'id 20260611 number 123456',
+          ),
+          isEmpty,
+        );
+      });
     });
   });
 }

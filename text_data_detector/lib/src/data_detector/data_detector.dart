@@ -1,3 +1,4 @@
+import '../detectors/calendar/calendar_event_detector.dart';
 import '../detectors/email/email_detector.dart';
 import '../detectors/phone/phone_detector.dart';
 import '../detectors/url/url_candidate.dart';
@@ -12,6 +13,8 @@ final class DataDetector {
   /// Creates a data detector.
   ///
   /// If [baseRules] is omitted, link, email, and phone rules are used.
+  /// Calendar event detection is available through `CalendarEventDetector`,
+  /// but is opt-in because dates and times are more prone to false positives.
   /// Pass an empty list to disable built-ins, or pass a custom base list to
   /// replace them. [additionalRules] are appended after the base list.
   factory DataDetector({
@@ -40,7 +43,11 @@ final class DataDetector {
           ...baseRules,
           ...additionalRules,
         ]),
-        _matchWeights = _createMatchWeights(options, baseRules);
+        _matchWeights = _createMatchWeights(
+          options,
+          baseRules,
+          additionalRules,
+        );
 
   /// Detection options used by this detector.
   final DataDetectorOptions options;
@@ -105,16 +112,22 @@ final class DataDetector {
   /// Builds the overlap weights used by this detector.
   ///
   /// Built-in defaults are included only for built-in rule classes present
-  /// in [baseRules]. User-provided weights then override those defaults
-  /// and may also define custom match weights.
+  /// in [baseRules]. Calendar gets a default weight when explicitly added,
+  /// because it is opt-in but still needs to resolve phone-like overlaps.
+  /// User-provided weights then override those defaults and may also define
+  /// custom match weights.
   static Map<DataMatchType, int> _createMatchWeights(
     DataDetectorOptions options,
     List<DataDetectorRule> baseRules,
+    List<DataDetectorRule> additionalRules,
   ) {
+    final allRules = [...baseRules, ...additionalRules];
     return {
       if (baseRules.any((rule) => rule is EmailDetector))
         DataMatchType.emailAddress: 100,
       if (baseRules.any((rule) => rule is LinkDetector)) DataMatchType.link: 90,
+      if (allRules.any((rule) => rule is CalendarEventDetector))
+        DataMatchType.calendarEvent: 85,
       if (baseRules.any((rule) => rule is PhoneDetector))
         DataMatchType.phoneNumber: 80,
       ...options.matchWeights,

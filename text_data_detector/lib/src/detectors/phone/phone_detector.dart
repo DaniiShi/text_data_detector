@@ -170,8 +170,7 @@ final class PhoneDetector implements DataDetectorRule {
     return codeUnit == 0x20 ||
         codeUnit == 0x28 ||
         codeUnit == 0x29 ||
-        codeUnit == 0x2d ||
-        codeUnit == 0x2e;
+        codeUnit == 0x2d;
   }
 
   /// Validates one candidate and returns the normalized phone string.
@@ -212,8 +211,7 @@ final class PhoneDetector implements DataDetectorRule {
           codeUnit == 0x28 ||
           codeUnit == 0x29 ||
           codeUnit == 0x2b ||
-          codeUnit == 0x2d ||
-          codeUnit == 0x2e) {
+          codeUnit == 0x2d) {
         continue;
       }
       return false;
