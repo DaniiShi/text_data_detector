@@ -1043,38 +1043,6 @@ void main() {
         expect(calendarDetector.matches('Meet at 6'), isEmpty);
       });
 
-      test('detects simple time ranges', () {
-        final match = calendarDetector.matches('Slot 18:00 - 19:00').single;
-
-        expect(match.text, '18:00 - 19:00');
-        expect(
-          match.normalizedText,
-          '2026-06-11T18:00:00/2026-06-11T19:00:00',
-        );
-        expect(
-          match.calendarEvent,
-          CalendarEventValue(
-            start: DateTime(2026, 6, 11, 18),
-            end: DateTime(2026, 6, 11, 19),
-            duration: const Duration(hours: 1),
-            hasTime: true,
-          ),
-        );
-      });
-
-      test('merges dates with following time ranges', () {
-        final match =
-            calendarDetector.matches('Meet 11.06.2026 18:00-19:00').single;
-
-        expect(match.text, '11.06.2026 18:00-19:00');
-        expect(
-          match.normalizedText,
-          '2026-06-11T18:00:00/2026-06-11T19:00:00',
-        );
-        expect(match.calendarEvent?.hasDate, isTrue);
-        expect(match.calendarEvent?.hasTime, isTrue);
-      });
-
       test('avoids common numeric false positives', () {
         expect(
           calendarDetector.matches(

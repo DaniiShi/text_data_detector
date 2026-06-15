@@ -328,13 +328,27 @@ void main() {
         );
       });
 
-      test('rejects invalid leap day with month name', () {
-        final matches = detector().matches('meet February 29, 2026');
+      test('detects leap day in a leap year', () {
+        final match = singleCalendarMatch('meet February 29, 2024');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2024, 2, 29));
+      });
+
+      test('rejects leap day in a non-leap year', () {
+        final matches = detector().matches('meet February 29, 2025');
 
         expect(
           matches.where((match) => match.type == DataMatchType.calendarEvent),
           isEmpty,
         );
+      });
+
+      test('detects February 28 in a non-leap year', () {
+        final match = singleCalendarMatch('meet February 28, 2026');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 2, 28));
       });
     });
 
@@ -576,124 +590,6 @@ void main() {
         expect(
             calendarMatches.any((match) => match.text == '11.06.2026'), isTrue);
         expect(calendarMatches.any((match) => match.text == '18:00'), isTrue);
-      });
-    });
-
-    group('time ranges', () {
-      test('detects 24-hour time range', () {
-        final match = singleCalendarMatch('busy 18:00-19:00');
-
-        expect(match.text, '18:00-19:00');
-        expect(match.normalizedText, '2026-06-11T18:00:00/2026-06-11T19:00:00');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11, 18, 0));
-        expect(value.end, DateTime(2026, 6, 11, 19, 0));
-        expect(value.duration, const Duration(hours: 1));
-        expect(value.hasDate, isFalse);
-        expect(value.hasTime, isTrue);
-      });
-
-      test('detects 24-hour time range with spaces', () {
-        final match = singleCalendarMatch('busy 18:00 - 19:30');
-
-        expect(match.text, '18:00 - 19:30');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11, 18, 0));
-        expect(value.end, DateTime(2026, 6, 11, 19, 30));
-      });
-
-      test('detects AM/PM time range', () {
-        final match = singleCalendarMatch('busy 6 PM - 7 PM');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11, 18, 0));
-        expect(value.end, DateTime(2026, 6, 11, 19, 0));
-      });
-
-      test('detects compact AM/PM time range', () {
-        final match = singleCalendarMatch('busy 6pm-7pm');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11, 18, 0));
-        expect(value.end, DateTime(2026, 6, 11, 19, 0));
-      });
-
-      test('rejects invalid time range start', () {
-        final matches = detector().matches('busy 25:00-26:00');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-
-      test('rejects invalid time range end', () {
-        final matches = detector().matches('busy 18:00-26:00');
-
-        final calendarMatches = matches
-            .where((match) => match.type == DataMatchType.calendarEvent)
-            .toList();
-
-        expect(calendarMatches.any((match) => match.text == '18:00-26:00'),
-            isFalse);
-      });
-
-      test('rejects reversed same-day time range', () {
-        final matches = detector().matches('busy 19:00-18:00');
-
-        final calendarMatches = matches
-            .where((match) => match.type == DataMatchType.calendarEvent)
-            .toList();
-
-        expect(calendarMatches.any((match) => match.text == '19:00-18:00'),
-            isFalse);
-      });
-    });
-
-    group('date + time ranges', () {
-      test('merges relative date with time range', () {
-        final match = singleCalendarMatch('busy tomorrow 18:00-19:00');
-
-        expect(match.text, 'tomorrow 18:00-19:00');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 12, 18, 0));
-        expect(value.end, DateTime(2026, 6, 12, 19, 0));
-        expect(value.duration, const Duration(hours: 1));
-        expect(value.hasDate, isTrue);
-        expect(value.hasTime, isTrue);
-      });
-
-      test('merges relative date with time range using at', () {
-        final match = singleCalendarMatch('busy tomorrow at 18:00-19:00');
-
-        expect(match.text, 'tomorrow at 18:00-19:00');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 12, 18, 0));
-        expect(value.end, DateTime(2026, 6, 12, 19, 0));
-      });
-
-      test('merges dot-separated date with time range', () {
-        final match = singleCalendarMatch('busy 11.06.2026 18:00-19:00');
-
-        expect(match.text, '11.06.2026 18:00-19:00');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11, 18, 0));
-        expect(value.end, DateTime(2026, 6, 11, 19, 0));
-      });
-
-      test('merges English month date with time range', () {
-        final match = singleCalendarMatch('busy June 11, 2026 6 PM - 7 PM');
-
-        expect(match.text, 'June 11, 2026 6 PM - 7 PM');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11, 18, 0));
-        expect(value.end, DateTime(2026, 6, 11, 19, 0));
       });
     });
 

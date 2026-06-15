@@ -3,7 +3,7 @@ import '../../data_detector/data_detector_rule.dart';
 import 'calendar_event_detector_options.dart';
 import 'calendar_event_value.dart';
 
-/// Finds date, time, and simple calendar-event expressions.
+/// Finds date and time expressions.
 final class CalendarEventDetector implements DataDetectorRule {
   const CalendarEventDetector({
     this.options = const CalendarEventDetectorOptions(),
@@ -35,7 +35,6 @@ final class CalendarEventDetector implements DataDetectorRule {
     NumericDatePattern(),
     EnglishMonthNameDatePattern(),
     EnglishRelativeDatePattern(),
-    TimeRangePattern(),
     TimePattern(),
   ];
 
@@ -67,8 +66,6 @@ final class CalendarEventDetector implements DataDetectorRule {
           normalizedText: _normalizedText(candidate),
           value: CalendarEventValue(
             start: candidate.value,
-            end: candidate.endValue,
-            duration: candidate.endValue?.difference(candidate.value),
             hasDate: candidate.hasDate,
             hasTime: candidate.hasTime,
             isAllDay: candidate.hasDate && !candidate.hasTime,
@@ -84,15 +81,14 @@ final class CalendarEventDetector implements DataDetectorRule {
     final dates = candidates.where((candidate) {
       return candidate.kind == CalendarCandidateKind.date;
     });
-    final timeLike = candidates.where((candidate) {
-      return candidate.kind == CalendarCandidateKind.time ||
-          candidate.kind == CalendarCandidateKind.timeRange;
+    final times = candidates.where((candidate) {
+      return candidate.kind == CalendarCandidateKind.time;
     }).toList()
       ..sort((a, b) => a.start.compareTo(b.start));
 
     final merged = <CalendarCandidate>[];
     for (final date in dates) {
-      for (final time in timeLike) {
+      for (final time in times) {
         if (time.start < date.end) {
           continue;
         }
@@ -105,19 +101,13 @@ final class CalendarEventDetector implements DataDetectorRule {
         }
 
         final start = _combineDateAndTime(date.value, time.value);
-        final end = time.endValue == null
-            ? null
-            : _combineDateAndTime(date.value, time.endValue!);
         merged.add(
           CalendarCandidate(
-            kind: end == null
-                ? CalendarCandidateKind.dateTime
-                : CalendarCandidateKind.dateTimeRange,
+            kind: CalendarCandidateKind.dateTime,
             start: date.start,
             end: time.end,
             text: text.substring(date.start, time.end),
             value: start,
-            endValue: end,
             hasDate: true,
             hasTime: true,
           ),
@@ -183,9 +173,7 @@ final class CalendarEventDetector implements DataDetectorRule {
 
   static int _priority(CalendarCandidateKind kind) {
     return switch (kind) {
-      CalendarCandidateKind.dateTimeRange => 50,
       CalendarCandidateKind.dateTime => 40,
-      CalendarCandidateKind.timeRange => 30,
       CalendarCandidateKind.date => 20,
       CalendarCandidateKind.time => 10,
     };
@@ -195,11 +183,7 @@ final class CalendarEventDetector implements DataDetectorRule {
     final start = candidate.hasTime
         ? _formatDateTime(candidate.value)
         : _formatDate(candidate.value);
-    final end = candidate.endValue;
-    if (end == null) {
-      return start;
-    }
-    return '$start/${_formatDateTime(end)}';
+    return start;
   }
 }
 
@@ -235,7 +219,7 @@ final class CalendarParsingContext {
 }
 
 /// Calendar candidate kind.
-enum CalendarCandidateKind { date, time, dateTime, timeRange, dateTimeRange }
+enum CalendarCandidateKind { date, time, dateTime }
 
 /// Internal calendar candidate.
 final class CalendarCandidate {
@@ -245,7 +229,6 @@ final class CalendarCandidate {
     required this.end,
     required this.text,
     required this.value,
-    this.endValue,
     required this.hasDate,
     required this.hasTime,
   });
@@ -264,9 +247,6 @@ final class CalendarCandidate {
 
   /// Start date/time value.
   final DateTime value;
-
-  /// End date/time value for ranges.
-  final DateTime? endValue;
 
   /// Whether this candidate has an explicit date.
   final bool hasDate;
@@ -460,67 +440,6 @@ final class TimePattern implements CalendarPattern {
           end: match.end,
           text: match.group(0)!,
           value: value,
-          hasDate: false,
-          hasTime: true,
-        ),
-      );
-    }
-    return candidates;
-  }
-}
-
-/// Finds time ranges such as `18:00-19:00` and `6 PM - 7 PM`.
-final class TimeRangePattern implements CalendarPattern {
-  const TimeRangePattern();
-
-  static final RegExp _pattern = RegExp(
-    r'(?<![\d:])(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?![\d:])',
-    caseSensitive: false,
-  );
-
-  @override
-  List<CalendarCandidate> find(String text, CalendarParsingContext context) {
-    final candidates = <CalendarCandidate>[];
-    for (final match in _pattern.allMatches(text)) {
-      final firstHasMinutes = match.group(2) != null;
-      final secondHasMinutes = match.group(5) != null;
-      final firstMeridiem = match.group(3);
-      final secondMeridiem = match.group(6);
-      if ((!firstHasMinutes && firstMeridiem == null) ||
-          (!secondHasMinutes && secondMeridiem == null)) {
-        continue;
-      }
-      if (!_hasTimeBoundary(text, match.start, match.end)) {
-        continue;
-      }
-
-      final startTime = _parseTime(
-        hourText: match.group(1)!,
-        minuteText: match.group(2),
-        meridiem: firstMeridiem ?? secondMeridiem,
-      );
-      final endTime = _parseTime(
-        hourText: match.group(4)!,
-        minuteText: match.group(5),
-        meridiem: secondMeridiem ?? firstMeridiem,
-      );
-      if (startTime == null || endTime == null) {
-        continue;
-      }
-
-      final start = _combineDateAndTime(context.referenceDate, startTime);
-      var end = _combineDateAndTime(context.referenceDate, endTime);
-      if (!end.isAfter(start)) {
-        continue;
-      }
-      candidates.add(
-        CalendarCandidate(
-          kind: CalendarCandidateKind.timeRange,
-          start: match.start,
-          end: match.end,
-          text: match.group(0)!,
-          value: start,
-          endValue: end,
           hasDate: false,
           hasTime: true,
         ),

@@ -69,8 +69,8 @@ final class _DetectorScreenState extends State<DetectorScreen> {
     'Release notes: https://example.com:8443/releases?q=stable',
     'Deep links: tg://resolve?domain=test and myapp://profile/123',
     'Ping @alice about #dart and #flutter',
-    'Meet tomorrow at 18:00 or June 11, 2026 at 6 PM',
-    'Office hours: 11.06.2026 18:00-19:00',
+    'Important dates: tomorrow and February 29, 2024',
+    'Release dates: 11.06.2026 and 06/12/2026',
   ];
 
   @override

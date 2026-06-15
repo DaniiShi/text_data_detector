@@ -17,7 +17,7 @@ final class DataMatchType {
   /// Phone number match.
   static const phoneNumber = DataMatchType('phoneNumber');
 
-  /// Calendar event match, including dates, times, and simple ranges.
+  /// Calendar event match, including dates and times.
   static const calendarEvent = DataMatchType('calendarEvent');
 
   /// All built-in match types.
