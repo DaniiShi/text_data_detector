@@ -275,30 +275,6 @@ final class CalendarCandidate {
   final bool hasTime;
 }
 
-/// Finds ISO dates such as `2026-06-11`.
-final class IsoDatePattern implements CalendarPattern {
-  const IsoDatePattern();
-
-  static final RegExp _pattern = RegExp(
-    r'(?<![A-Za-z\d])(\d{4})-(\d{1,2})-(\d{1,2})(?![A-Za-z\d])',
-  );
-
-  @override
-  List<CalendarCandidate> find(String text, CalendarParsingContext context) {
-    return [
-      for (final match in _pattern.allMatches(text))
-        if (_dateFromParts(
-          int.parse(match.group(1)!),
-          int.parse(match.group(2)!),
-          int.parse(match.group(3)!),
-          context,
-        )
-            case final date?)
-          _dateCandidate(match, date),
-    ];
-  }
-}
-
 /// Finds numeric dates such as `11.06.2026` and `11/06/2026`.
 final class NumericDatePattern implements CalendarPattern {
   const NumericDatePattern();
@@ -340,7 +316,7 @@ final class NumericDatePattern implements CalendarPattern {
 }
 
 bool _hasSupportedNumericYearLength(String text) {
-  return text.length == 2 || text.length == 4;
+  return text.length == 4;
 }
 
 /// Finds English month-name dates such as `June 11, 2026`.
@@ -572,9 +548,6 @@ DateTime? _dateFromParts(
   int day,
   CalendarParsingContext context,
 ) {
-  if (year >= 0 && year < 100) {
-    year += year >= 70 ? 1900 : 2000;
-  }
   if (year < context.minYear || year > context.maxYear) {
     return null;
   }

@@ -981,35 +981,6 @@ void main() {
         expect(calendarDetector.matches('Meet on 11-06-2026.'), isEmpty);
       });
 
-      test('can detect ISO dates when the ISO pattern is explicitly enabled',
-          () {
-        final isoDetector = DataDetector(
-          baseRules: const [],
-          additionalRules: [
-            CalendarEventDetector.custom(
-              options: CalendarEventDetectorOptions(
-                referenceDate: referenceDate,
-              ),
-              patterns: const [IsoDatePattern()],
-            ),
-          ],
-        );
-
-        final match = isoDetector.matches('Meet on 2026-06-11.').single;
-
-        expect(match.type, DataMatchType.calendarEvent);
-        expect(match.text, '2026-06-11');
-        expect(match.normalizedText, '2026-06-11');
-        expect(
-          match.calendarEvent,
-          CalendarEventValue(
-            start: DateTime(2026, 6, 11),
-            hasDate: true,
-            isAllDay: true,
-          ),
-        );
-      });
-
       test('detects numeric dates using configured date order', () {
         final dayFirst = calendarDetector.matches('Meet 01/02/2026').single;
         final monthFirst = DataDetector(

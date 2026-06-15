@@ -9,7 +9,6 @@ void main() {
       CalendarEventDetectorOptions options =
           const CalendarEventDetectorOptions(),
       List<CalendarPattern>? calendarPatterns,
-      bool includeIso = false,
       bool includeBuiltIns = false,
     }) {
       final calendarOptions = CalendarEventDetectorOptions(
@@ -22,13 +21,7 @@ void main() {
         baseRules: includeBuiltIns ? null : const [],
         additionalRules: [
           if (calendarPatterns == null)
-            if (includeIso)
-              CalendarEventDetector.extended(
-                options: calendarOptions,
-                additionalPatterns: const [IsoDatePattern()],
-              )
-            else
-              CalendarEventDetector(options: calendarOptions)
+            CalendarEventDetector(options: calendarOptions)
           else
             CalendarEventDetector.custom(
               options: calendarOptions,
@@ -43,13 +36,11 @@ void main() {
       CalendarEventDetectorOptions options =
           const CalendarEventDetectorOptions(),
       List<CalendarPattern>? calendarPatterns,
-      bool includeIso = false,
       bool includeBuiltIns = false,
     }) {
       final matches = detector(
         options: options,
         calendarPatterns: calendarPatterns,
-        includeIso: includeIso,
         includeBuiltIns: includeBuiltIns,
       ).matches(text);
       final calendarMatches = matches
@@ -64,132 +55,6 @@ void main() {
       expect(match.value, isA<CalendarEventValue>());
       return match.value! as CalendarEventValue;
     }
-
-    group('ISO dates', () {
-      test('detects ISO date', () {
-        final match = singleCalendarMatch(
-          'meet on 2026-06-11',
-          calendarPatterns: const [IsoDatePattern()],
-        );
-
-        expect(match.text, '2026-06-11');
-        expect(match.normalizedText, '2026-06-11');
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11));
-        expect(value.end, isNull);
-        expect(value.hasDate, isTrue);
-        expect(value.hasTime, isFalse);
-        expect(value.isAllDay, isTrue);
-      });
-
-      test('detects ISO date inside sentence and keeps original range', () {
-        final text = 'meeting 2026-06-11 please';
-        final match = singleCalendarMatch(
-          text,
-          calendarPatterns: const [IsoDatePattern()],
-        );
-
-        expect(text.substring(match.start, match.end), '2026-06-11');
-      });
-
-      test('rejects invalid ISO day', () {
-        final matches = detector(
-          calendarPatterns: const [IsoDatePattern()],
-        ).matches('date 2026-02-31');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-
-      test('rejects invalid ISO month', () {
-        final matches = detector(
-          calendarPatterns: const [IsoDatePattern()],
-        ).matches('date 2026-13-11');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-
-      test('rejects invalid zero month', () {
-        final matches = detector(
-          calendarPatterns: const [IsoDatePattern()],
-        ).matches('date 2026-00-11');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-
-      test('rejects invalid zero day', () {
-        final matches = detector(
-          calendarPatterns: const [IsoDatePattern()],
-        ).matches('date 2026-06-00');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-
-      test('rejects year below minYear', () {
-        final matches = detector(
-          calendarPatterns: const [IsoDatePattern()],
-          options: CalendarEventDetectorOptions(
-            referenceDate: referenceDate,
-            minYear: 2000,
-            maxYear: 2100,
-          ),
-        ).matches('date 1999-06-11');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-
-      test('rejects year above maxYear', () {
-        final matches = detector(
-          calendarPatterns: const [IsoDatePattern()],
-          options: CalendarEventDetectorOptions(
-            referenceDate: referenceDate,
-            minYear: 1900,
-            maxYear: 2100,
-          ),
-        ).matches('date 2101-06-11');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-
-      test('detects leap day in leap year', () {
-        final match = singleCalendarMatch(
-          'date 2024-02-29',
-          calendarPatterns: const [IsoDatePattern()],
-        );
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2024, 2, 29));
-      });
-
-      test('rejects leap day in non-leap year', () {
-        final matches = detector(
-          calendarPatterns: const [IsoDatePattern()],
-        ).matches('date 2026-02-29');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-    });
 
     group('numeric dates: dayMonthYear', () {
       test('detects dot-separated DMY date', () {
@@ -361,44 +226,49 @@ void main() {
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 11));
       });
-
-      test('parses dash-separated YMD date with explicit ISO pattern', () {
-        final match = singleCalendarMatch(
-          'date 2026-06-11',
-          includeIso: true,
-        );
-
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11));
-      });
     });
 
     group('two-digit years', () {
-      test('parses two-digit year as 2000s by default', () {
-        final match = singleCalendarMatch(
-          'date 11/06/26',
+      test('does not detect DMY date with zero two-digit year', () {
+        final matches = detector(
           options: CalendarEventDetectorOptions(
             referenceDate: referenceDate,
             numericDateOrder: NumericDateOrder.dayMonthYear,
           ),
-        );
+        ).matches('date 11/06/00');
 
-        final value = calendarValue(match);
-        expect(value.start, DateTime(2026, 6, 11));
+        expect(
+          matches.where((match) => match.type == DataMatchType.calendarEvent),
+          isEmpty,
+        );
       });
 
-      test('parses older two-digit year as 1900s if pivot logic supports it',
-          () {
-        final match = singleCalendarMatch(
-          'date 11/06/99',
+      test('does not detect DMY date with non-zero two-digit year', () {
+        final matches = detector(
           options: CalendarEventDetectorOptions(
             referenceDate: referenceDate,
             numericDateOrder: NumericDateOrder.dayMonthYear,
           ),
-        );
+        ).matches('date 11/06/26');
 
-        final value = calendarValue(match);
-        expect(value.start, DateTime(1999, 6, 11));
+        expect(
+          matches.where((match) => match.type == DataMatchType.calendarEvent),
+          isEmpty,
+        );
+      });
+
+      test('does not detect YMD date with two-digit year', () {
+        final matches = detector(
+          options: CalendarEventDetectorOptions(
+            referenceDate: referenceDate,
+            numericDateOrder: NumericDateOrder.yearMonthDay,
+          ),
+        ).matches('date 26/06/11');
+
+        expect(
+          matches.where((match) => match.type == DataMatchType.calendarEvent),
+          isEmpty,
+        );
       });
     });
 
@@ -633,13 +503,10 @@ void main() {
     });
 
     group('date + time merge', () {
-      test('merges ISO date and 24-hour time', () {
-        final match = singleCalendarMatch(
-          'meet 2026-06-11 18:00',
-          includeIso: true,
-        );
+      test('merges dot-separated date and 24-hour time', () {
+        final match = singleCalendarMatch('meet 11.06.2026 18:00');
 
-        expect(match.text, '2026-06-11 18:00');
+        expect(match.text, '11.06.2026 18:00');
         expect(match.normalizedText, '2026-06-11T18:00:00');
 
         final value = calendarValue(match);
@@ -649,25 +516,19 @@ void main() {
         expect(value.isAllDay, isFalse);
       });
 
-      test('merges ISO date and time with comma', () {
-        final match = singleCalendarMatch(
-          'meet 2026-06-11, 18:00',
-          includeIso: true,
-        );
+      test('merges slash-separated date and time with comma', () {
+        final match = singleCalendarMatch('meet 11/06/2026, 18:00');
 
-        expect(match.text, '2026-06-11, 18:00');
+        expect(match.text, '11/06/2026, 18:00');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 11, 18, 0));
       });
 
-      test('merges ISO date and time with at', () {
-        final match = singleCalendarMatch(
-          'meet 2026-06-11 at 18:00',
-          includeIso: true,
-        );
+      test('merges month-name date and time with at', () {
+        final match = singleCalendarMatch('meet June 11, 2026 at 18:00');
 
-        expect(match.text, '2026-06-11 at 18:00');
+        expect(match.text, 'June 11, 2026 at 18:00');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 11, 18, 0));
@@ -815,13 +676,10 @@ void main() {
         expect(value.end, DateTime(2026, 6, 12, 19, 0));
       });
 
-      test('merges ISO date with time range', () {
-        final match = singleCalendarMatch(
-          'busy 2026-06-11 18:00-19:00',
-          includeIso: true,
-        );
+      test('merges dot-separated date with time range', () {
+        final match = singleCalendarMatch('busy 11.06.2026 18:00-19:00');
 
-        expect(match.text, '2026-06-11 18:00-19:00');
+        expect(match.text, '11.06.2026 18:00-19:00');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 11, 18, 0));
@@ -1032,6 +890,23 @@ void main() {
             numericDateOrder: NumericDateOrder.dayMonthYear,
           ),
         ).matches('meet 11-06-2026');
+
+        final calendarMatches = matches
+            .where((match) => match.type == DataMatchType.calendarEvent)
+            .toList();
+
+        final phoneMatches = matches
+            .where((match) => match.type == DataMatchType.phoneNumber)
+            .toList();
+
+        expect(calendarMatches, isEmpty);
+        expect(phoneMatches, isEmpty);
+      });
+
+      test('ISO-like date is not a calendar event or phone number', () {
+        final matches = detector(
+          includeBuiltIns: true,
+        ).matches('meet 2026-06-11');
 
         final calendarMatches = matches
             .where((match) => match.type == DataMatchType.calendarEvent)
