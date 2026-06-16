@@ -2,7 +2,9 @@
 final class CalendarEventValue {
   const CalendarEventValue({
     this.start,
+    this.end,
     this.timeZone,
+    this.duration,
     this.hasDate = false,
     this.hasTime = false,
     this.isAllDay = false,
@@ -11,8 +13,14 @@ final class CalendarEventValue {
   /// Event start, if the detector could resolve one.
   final DateTime? start;
 
+  /// Event end for ranges.
+  final DateTime? end;
+
   /// Time zone label, reserved for future time-zone parsing.
   final String? timeZone;
+
+  /// Event duration, usually derived from [start] and [end].
+  final Duration? duration;
 
   /// Whether the source text contained an explicit date.
   final bool hasDate;
@@ -27,7 +35,9 @@ final class CalendarEventValue {
   bool operator ==(Object other) {
     return other is CalendarEventValue &&
         other.start == start &&
+        other.end == end &&
         other.timeZone == timeZone &&
+        other.duration == duration &&
         other.hasDate == hasDate &&
         other.hasTime == hasTime &&
         other.isAllDay == isAllDay;
@@ -37,7 +47,9 @@ final class CalendarEventValue {
   int get hashCode {
     return Object.hash(
       start,
+      end,
       timeZone,
+      duration,
       hasDate,
       hasTime,
       isAllDay,
@@ -48,7 +60,9 @@ final class CalendarEventValue {
   String toString() {
     return 'CalendarEventValue('
         'start: $start, '
+        'end: $end, '
         'timeZone: $timeZone, '
+        'duration: $duration, '
         'hasDate: $hasDate, '
         'hasTime: $hasTime, '
         'isAllDay: $isAllDay'

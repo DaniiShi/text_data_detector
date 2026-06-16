@@ -16,12 +16,15 @@ final class CalendarEventDetector implements DataDetectorRule {
   });
 
   /// Creates a detector using default patterns plus [additionalPatterns].
+  ///
+  /// When [additionalPatterns] is omitted, English month-name and relative date
+  /// patterns are added.
   CalendarEventDetector.extended({
-    List<CalendarPattern> additionalPatterns = const [],
+    List<CalendarPattern>? additionalPatterns,
     this.options = const CalendarEventDetectorOptions(),
   }) : patterns = List<CalendarPattern>.unmodifiable([
           ...defaultCalendarPatterns,
-          ...additionalPatterns,
+          ...(additionalPatterns ?? defaultAdditionalCalendarPatterns),
         ]);
 
   /// Calendar parsing options.
@@ -33,9 +36,15 @@ final class CalendarEventDetector implements DataDetectorRule {
   /// Default calendar patterns for the MVP detector.
   static const defaultCalendarPatterns = <CalendarPattern>[
     NumericDatePattern(),
+    TimeRangePattern(),
+    TimePattern(),
+  ];
+
+  /// Extra calendar patterns used by [CalendarEventDetector.extended] when no
+  /// custom additional patterns are supplied.
+  static const defaultAdditionalCalendarPatterns = <CalendarPattern>[
     EnglishMonthNameDatePattern(),
     EnglishRelativeDatePattern(),
-    TimePattern(),
   ];
 
   @override
@@ -66,6 +75,8 @@ final class CalendarEventDetector implements DataDetectorRule {
           normalizedText: _normalizedText(candidate),
           value: CalendarEventValue(
             start: candidate.value,
+            end: candidate.endValue,
+            duration: candidate.endValue?.difference(candidate.value),
             hasDate: candidate.hasDate,
             hasTime: candidate.hasTime,
             isAllDay: candidate.hasDate && !candidate.hasTime,
@@ -81,14 +92,15 @@ final class CalendarEventDetector implements DataDetectorRule {
     final dates = candidates.where((candidate) {
       return candidate.kind == CalendarCandidateKind.date;
     });
-    final times = candidates.where((candidate) {
-      return candidate.kind == CalendarCandidateKind.time;
+    final timeLike = candidates.where((candidate) {
+      return candidate.kind == CalendarCandidateKind.time ||
+          candidate.kind == CalendarCandidateKind.timeRange;
     }).toList()
       ..sort((a, b) => a.start.compareTo(b.start));
 
     final merged = <CalendarCandidate>[];
     for (final date in dates) {
-      for (final time in times) {
+      for (final time in timeLike) {
         if (time.start < date.end) {
           continue;
         }
@@ -101,13 +113,19 @@ final class CalendarEventDetector implements DataDetectorRule {
         }
 
         final start = _combineDateAndTime(date.value, time.value);
+        final end = time.endValue == null
+            ? null
+            : _combineDateAndTime(date.value, time.endValue!);
         merged.add(
           CalendarCandidate(
-            kind: CalendarCandidateKind.dateTime,
+            kind: end == null
+                ? CalendarCandidateKind.dateTime
+                : CalendarCandidateKind.dateTimeRange,
             start: date.start,
             end: time.end,
             text: text.substring(date.start, time.end),
             value: start,
+            endValue: end,
             hasDate: true,
             hasTime: true,
           ),
@@ -173,7 +191,9 @@ final class CalendarEventDetector implements DataDetectorRule {
 
   static int _priority(CalendarCandidateKind kind) {
     return switch (kind) {
+      CalendarCandidateKind.dateTimeRange => 50,
       CalendarCandidateKind.dateTime => 40,
+      CalendarCandidateKind.timeRange => 30,
       CalendarCandidateKind.date => 20,
       CalendarCandidateKind.time => 10,
     };
@@ -183,7 +203,13 @@ final class CalendarEventDetector implements DataDetectorRule {
     final start = candidate.hasTime
         ? _formatDateTime(candidate.value)
         : _formatDate(candidate.value);
-    return start;
+    final end = candidate.endValue;
+    if (end == null) {
+      return start;
+    }
+    final formattedEnd =
+        candidate.hasTime ? _formatDateTime(end) : _formatDate(end);
+    return '$start/$formattedEnd';
   }
 }
 
@@ -219,7 +245,7 @@ final class CalendarParsingContext {
 }
 
 /// Calendar candidate kind.
-enum CalendarCandidateKind { date, time, dateTime }
+enum CalendarCandidateKind { date, time, dateTime, timeRange, dateTimeRange }
 
 /// Internal calendar candidate.
 final class CalendarCandidate {
@@ -229,6 +255,7 @@ final class CalendarCandidate {
     required this.end,
     required this.text,
     required this.value,
+    this.endValue,
     required this.hasDate,
     required this.hasTime,
   });
@@ -247,6 +274,9 @@ final class CalendarCandidate {
 
   /// Start date/time value.
   final DateTime value;
+
+  /// End date/time value for ranges.
+  final DateTime? endValue;
 
   /// Whether this candidate has an explicit date.
   final bool hasDate;
@@ -299,17 +329,17 @@ bool _hasSupportedNumericYearLength(String text) {
   return text.length == 4;
 }
 
-/// Finds English month-name dates such as `June 11, 2026`.
+/// Finds English month-name dates such as `June 11, 2026` and `June 11`.
 final class EnglishMonthNameDatePattern implements CalendarPattern {
   const EnglishMonthNameDatePattern();
 
   static final RegExp _monthDayYearPattern = RegExp(
-    r'\b([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,\s*|\s+)(\d{4})\b',
+    r'\b([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:(?:,\s*|\s+)(\d{4})\b)?',
     caseSensitive: false,
   );
 
   static final RegExp _dayMonthYearPattern = RegExp(
-    r'\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})\b',
+    r'\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)(?:(?:,\s*|\s+)(\d{4})\b)?',
     caseSensitive: false,
   );
 
@@ -349,7 +379,7 @@ final class EnglishMonthNameDatePattern implements CalendarPattern {
         continue;
       }
       final date = _dateFromParts(
-        int.parse(match.group(3)!),
+        _parseMonthNameYear(match.group(3), context),
         month,
         int.parse(match.group(2)!),
         context,
@@ -364,7 +394,7 @@ final class EnglishMonthNameDatePattern implements CalendarPattern {
         continue;
       }
       final date = _dateFromParts(
-        int.parse(match.group(3)!),
+        _parseMonthNameYear(match.group(3), context),
         month,
         int.parse(match.group(1)!),
         context,
@@ -377,29 +407,54 @@ final class EnglishMonthNameDatePattern implements CalendarPattern {
   }
 }
 
-/// Finds English relative dates: `today`, `tomorrow`, `yesterday`.
+int _parseMonthNameYear(String? yearText, CalendarParsingContext context) {
+  return yearText == null ? context.referenceDate.year : int.parse(yearText);
+}
+
+/// Finds English relative dates: `today`, `tomorrow`, and `3 days ago`.
 final class EnglishRelativeDatePattern implements CalendarPattern {
   const EnglishRelativeDatePattern();
 
-  static final RegExp _pattern = RegExp(
+  static final RegExp _namedPattern = RegExp(
     r'\b(today|tomorrow|yesterday)\b',
+    caseSensitive: false,
+  );
+
+  static final RegExp _agoPattern = RegExp(
+    r'\b(\d+)\s+(day|days|week|weeks)\s+ago\b',
     caseSensitive: false,
   );
 
   @override
   List<CalendarCandidate> find(String text, CalendarParsingContext context) {
-    return [
-      for (final match in _pattern.allMatches(text))
+    final candidates = <CalendarCandidate>[
+      for (final match in _namedPattern.allMatches(text))
+        _dateCandidate(match, _namedRelativeDate(match, context)),
+    ];
+
+    for (final match in _agoPattern.allMatches(text)) {
+      final amount = int.parse(match.group(1)!);
+      final unit = match.group(2)!.toLowerCase();
+      final days = unit.startsWith('week') ? amount * 7 : amount;
+      candidates.add(
         _dateCandidate(
           match,
-          switch (match.group(1)!.toLowerCase()) {
-            'tomorrow' => context.referenceDate.add(const Duration(days: 1)),
-            'yesterday' =>
-              context.referenceDate.subtract(const Duration(days: 1)),
-            _ => context.referenceDate,
-          },
+          context.referenceDate.subtract(Duration(days: days)),
         ),
-    ];
+      );
+    }
+    return candidates;
+  }
+
+  static DateTime _namedRelativeDate(
+    RegExpMatch match,
+    CalendarParsingContext context,
+  ) {
+    return switch (match.group(1)!.toLowerCase()) {
+      'tomorrow' => context.referenceDate.add(const Duration(days: 1)),
+      'yesterday' => context.referenceDate.subtract(const Duration(days: 1)),
+      _ => context.referenceDate,
+    };
   }
 }
 
@@ -440,6 +495,67 @@ final class TimePattern implements CalendarPattern {
           end: match.end,
           text: match.group(0)!,
           value: value,
+          hasDate: false,
+          hasTime: true,
+        ),
+      );
+    }
+    return candidates;
+  }
+}
+
+/// Finds time ranges such as `18:00-19:00` and `6 PM - 7 PM`.
+final class TimeRangePattern implements CalendarPattern {
+  const TimeRangePattern();
+
+  static final RegExp _pattern = RegExp(
+    r'(?<![\d:])(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?![\d:])',
+    caseSensitive: false,
+  );
+
+  @override
+  List<CalendarCandidate> find(String text, CalendarParsingContext context) {
+    final candidates = <CalendarCandidate>[];
+    for (final match in _pattern.allMatches(text)) {
+      final firstHasMinutes = match.group(2) != null;
+      final secondHasMinutes = match.group(5) != null;
+      final firstMeridiem = match.group(3);
+      final secondMeridiem = match.group(6);
+      if ((!firstHasMinutes && firstMeridiem == null) ||
+          (!secondHasMinutes && secondMeridiem == null)) {
+        continue;
+      }
+      if (!_hasTimeBoundary(text, match.start, match.end)) {
+        continue;
+      }
+
+      final startTime = _parseTime(
+        hourText: match.group(1)!,
+        minuteText: match.group(2),
+        meridiem: firstMeridiem ?? secondMeridiem,
+      );
+      final endTime = _parseTime(
+        hourText: match.group(4)!,
+        minuteText: match.group(5),
+        meridiem: secondMeridiem ?? firstMeridiem,
+      );
+      if (startTime == null || endTime == null) {
+        continue;
+      }
+
+      final start = _combineDateAndTime(context.referenceDate, startTime);
+      final end = _combineDateAndTime(context.referenceDate, endTime);
+      if (!end.isAfter(start)) {
+        continue;
+      }
+      candidates.add(
+        CalendarCandidate(
+          kind: CalendarCandidateKind.timeRange,
+          start: match.start,
+          end: match.end,
+          text: match.group(0)!,
+          value: start,
+          endValue: end,
           hasDate: false,
           hasTime: true,
         ),

@@ -42,8 +42,8 @@ final class _DetectorScreenState extends State<DetectorScreen> {
     text: 'Visit example.com or https://flutter.dev',
   );
   final _detector = DataDetector(
-    additionalRules: const [
-      CalendarEventDetector(),
+    additionalRules: [
+      CalendarEventDetector.extended(),
       MentionDetector(),
       HashtagDetector(),
     ],
@@ -362,9 +362,9 @@ final class MessageBubble extends StatelessWidget {
   ) async {
     final uri = _uriForEntity(entity);
     if (uri == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${entity.type}: ${entity.text}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${entity.type}: ${entity.normalizedText}')),
+      );
       return;
     }
 
@@ -373,9 +373,9 @@ final class MessageBubble extends StatelessWidget {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Could not open ${entity.text}')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Could not open ${entity.normalizedText}')),
+    );
   }
 
   Uri? _uriForEntity(DataDetectorMatch entity) {

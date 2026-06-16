@@ -87,7 +87,7 @@ final matches = 'Open example.com'.dataDetectorMatches();
 
 final calendarMatches = 'Meet February 29, 2024'.dataDetectorMatches(
   additionalRules: [
-    CalendarEventDetector(
+    CalendarEventDetector.extended(
       options: CalendarEventDetectorOptions(
         referenceDate: DateTime(2026, 6, 11),
       ),
@@ -123,7 +123,7 @@ risk than links or email addresses:
 ```dart
 final detector = DataDetector(
   additionalRules: [
-    CalendarEventDetector(
+    CalendarEventDetector.extended(
       options: CalendarEventDetectorOptions(
         referenceDate: DateTime(2026, 6, 11),
         numericDateOrder: NumericDateOrder.dayMonthYear,
@@ -144,9 +144,11 @@ match.calendarEvent?.start; // DateTime(2024, 2, 29)
 ```
 
 The default detector supports dot- and slash-separated numeric dates using
-configurable DMY, MDY, or YMD order; English full and abbreviated month names;
-and the relative dates `today`, `tomorrow`, and `yesterday`. Relative dates are
-resolved using `referenceDate`.
+configurable DMY, MDY, or YMD order, plus time-only values and time ranges.
+`CalendarEventDetector.extended()` adds English full and abbreviated month
+names, and relative dates such as `today`, `tomorrow`, `yesterday`,
+`3 days ago`, and `2 weeks ago` when no `additionalPatterns` are supplied.
+Relative dates are resolved using `referenceDate`.
 
 For custom calendar syntax, replace or extend the pattern pipeline:
 
@@ -158,6 +160,8 @@ final customOnly = CalendarEventDetector.custom(
 final extended = CalendarEventDetector.extended(
   additionalPatterns: [MyRussianRelativeDatePattern()],
 );
+
+final extendedWithBuiltInExtras = CalendarEventDetector.extended();
 ```
 
 ## Custom Detection
@@ -347,5 +351,4 @@ The digit limits can be adjusted with `PhoneDetectorOptions.minDigits` and
 
 The runtime does not read or parse a PSL text file during detection. The current
 implementation uses generated Dart data bucketed by TLD, which keeps the lookup
-path simple and allocation-light. The seed data is intentionally small in this
-early implementation.
+path simple and allocation-light.

@@ -10,6 +10,7 @@ void main() {
           const CalendarEventDetectorOptions(),
       List<CalendarPattern>? calendarPatterns,
       bool includeBuiltIns = false,
+      bool useExtendedCalendarPatterns = false,
     }) {
       final calendarOptions = CalendarEventDetectorOptions(
         referenceDate: options.referenceDate ?? referenceDate,
@@ -21,7 +22,10 @@ void main() {
         baseRules: includeBuiltIns ? null : const [],
         additionalRules: [
           if (calendarPatterns == null)
-            CalendarEventDetector(options: calendarOptions)
+            if (useExtendedCalendarPatterns)
+              CalendarEventDetector.extended(options: calendarOptions)
+            else
+              CalendarEventDetector(options: calendarOptions)
           else
             CalendarEventDetector.custom(
               options: calendarOptions,
@@ -37,11 +41,13 @@ void main() {
           const CalendarEventDetectorOptions(),
       List<CalendarPattern>? calendarPatterns,
       bool includeBuiltIns = false,
+      bool useExtendedCalendarPatterns = false,
     }) {
       final matches = detector(
         options: options,
         calendarPatterns: calendarPatterns,
         includeBuiltIns: includeBuiltIns,
+        useExtendedCalendarPatterns: useExtendedCalendarPatterns,
       ).matches(text);
       final calendarMatches = matches
           .where((match) => match.type == DataMatchType.calendarEvent)
@@ -273,8 +279,15 @@ void main() {
     });
 
     group('English month names', () {
+      DataDetectorMatch singleExtendedCalendarMatch(String text) {
+        return singleCalendarMatch(
+          text,
+          useExtendedCalendarPatterns: true,
+        );
+      }
+
       test('detects full month name before day and year', () {
-        final match = singleCalendarMatch('meet June 11, 2026');
+        final match = singleExtendedCalendarMatch('meet June 11, 2026');
 
         expect(match.text, 'June 11, 2026');
 
@@ -283,21 +296,44 @@ void main() {
       });
 
       test('detects full month name without comma', () {
-        final match = singleCalendarMatch('meet June 11 2026');
+        final match = singleExtendedCalendarMatch('meet June 11 2026');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 11));
       });
 
       test('detects short month name before day and year', () {
-        final match = singleCalendarMatch('meet Jun 11 2026');
+        final match = singleExtendedCalendarMatch('meet Jun 11 2026');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 11));
       });
 
+      test('detects full month name before day without year', () {
+        final match = singleExtendedCalendarMatch('meet February 17');
+
+        expect(match.text, 'February 17');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 2, 17));
+      });
+
+      test('detects short month name before day without year', () {
+        final match = singleExtendedCalendarMatch('meet Feb 17');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 2, 17));
+      });
+
+      test('detects Sept abbreviation before day without year', () {
+        final match = singleExtendedCalendarMatch('meet Sept 17');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 9, 17));
+      });
+
       test('detects day before full month name', () {
-        final match = singleCalendarMatch('meet 11 June 2026');
+        final match = singleExtendedCalendarMatch('meet 11 June 2026');
 
         expect(match.text, '11 June 2026');
 
@@ -306,21 +342,30 @@ void main() {
       });
 
       test('detects day before short month name', () {
-        final match = singleCalendarMatch('meet 11 Jun 2026');
+        final match = singleExtendedCalendarMatch('meet 11 Jun 2026');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 11));
       });
 
+      test('detects day before month name without year', () {
+        final match = singleExtendedCalendarMatch('meet 17 February');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 2, 17));
+      });
+
       test('is case-insensitive for month names', () {
-        final match = singleCalendarMatch('meet jUnE 11, 2026');
+        final match = singleExtendedCalendarMatch('meet jUnE 11, 2026');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 11));
       });
 
       test('rejects invalid month-name day', () {
-        final matches = detector().matches('meet June 32, 2026');
+        final matches = detector(
+          useExtendedCalendarPatterns: true,
+        ).matches('meet June 32, 2026');
 
         expect(
           matches.where((match) => match.type == DataMatchType.calendarEvent),
@@ -329,14 +374,16 @@ void main() {
       });
 
       test('detects leap day in a leap year', () {
-        final match = singleCalendarMatch('meet February 29, 2024');
+        final match = singleExtendedCalendarMatch('meet February 29, 2024');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2024, 2, 29));
       });
 
       test('rejects leap day in a non-leap year', () {
-        final matches = detector().matches('meet February 29, 2025');
+        final matches = detector(
+          useExtendedCalendarPatterns: true,
+        ).matches('meet February 29, 2025');
 
         expect(
           matches.where((match) => match.type == DataMatchType.calendarEvent),
@@ -345,7 +392,7 @@ void main() {
       });
 
       test('detects February 28 in a non-leap year', () {
-        final match = singleCalendarMatch('meet February 28, 2026');
+        final match = singleExtendedCalendarMatch('meet February 28, 2026');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 2, 28));
@@ -353,8 +400,15 @@ void main() {
     });
 
     group('relative dates', () {
+      DataDetectorMatch singleExtendedCalendarMatch(String text) {
+        return singleCalendarMatch(
+          text,
+          useExtendedCalendarPatterns: true,
+        );
+      }
+
       test('detects today', () {
-        final match = singleCalendarMatch('meet today');
+        final match = singleExtendedCalendarMatch('meet today');
 
         expect(match.text, 'today');
 
@@ -366,7 +420,7 @@ void main() {
       });
 
       test('detects tomorrow', () {
-        final match = singleCalendarMatch('meet tomorrow');
+        final match = singleExtendedCalendarMatch('meet tomorrow');
 
         expect(match.text, 'tomorrow');
 
@@ -375,7 +429,7 @@ void main() {
       });
 
       test('detects yesterday', () {
-        final match = singleCalendarMatch('met yesterday');
+        final match = singleExtendedCalendarMatch('met yesterday');
 
         expect(match.text, 'yesterday');
 
@@ -383,15 +437,36 @@ void main() {
         expect(value.start, DateTime(2026, 6, 10));
       });
 
+      test('detects days ago', () {
+        final match = singleExtendedCalendarMatch('met 3 days ago');
+
+        expect(match.text, '3 days ago');
+        expect(match.normalizedText, '2026-06-08');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 8));
+      });
+
+      test('detects weeks ago', () {
+        final match = singleExtendedCalendarMatch('met 2 weeks ago');
+
+        expect(match.text, '2 weeks ago');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 5, 28));
+      });
+
       test('relative dates are case-insensitive', () {
-        final match = singleCalendarMatch('meet Tomorrow');
+        final match = singleExtendedCalendarMatch('meet Tomorrow');
 
         final value = calendarValue(match);
         expect(value.start, DateTime(2026, 6, 12));
       });
 
       test('does not detect relative date inside another word', () {
-        final matches = detector().matches('mytomorrowtext');
+        final matches = detector(
+          useExtendedCalendarPatterns: true,
+        ).matches('mytomorrowtext');
 
         expect(
           matches.where((match) => match.type == DataMatchType.calendarEvent),
@@ -540,7 +615,10 @@ void main() {
       });
 
       test('merges month-name date and time with at', () {
-        final match = singleCalendarMatch('meet June 11, 2026 at 18:00');
+        final match = singleCalendarMatch(
+          'meet June 11, 2026 at 18:00',
+          useExtendedCalendarPatterns: true,
+        );
 
         expect(match.text, 'June 11, 2026 at 18:00');
 
@@ -549,7 +627,10 @@ void main() {
       });
 
       test('merges relative date and time', () {
-        final match = singleCalendarMatch('meet tomorrow at 18:00');
+        final match = singleCalendarMatch(
+          'meet tomorrow at 18:00',
+          useExtendedCalendarPatterns: true,
+        );
 
         expect(match.text, 'tomorrow at 18:00');
 
@@ -560,7 +641,10 @@ void main() {
       });
 
       test('merges relative date and compact PM time', () {
-        final match = singleCalendarMatch('meet tomorrow 6pm');
+        final match = singleCalendarMatch(
+          'meet tomorrow 6pm',
+          useExtendedCalendarPatterns: true,
+        );
 
         expect(match.text, 'tomorrow 6pm');
 
@@ -569,7 +653,10 @@ void main() {
       });
 
       test('merges English month date and PM time', () {
-        final match = singleCalendarMatch('meet June 11, 2026 at 6 PM');
+        final match = singleCalendarMatch(
+          'meet June 11, 2026 at 6 PM',
+          useExtendedCalendarPatterns: true,
+        );
 
         expect(match.text, 'June 11, 2026 at 6 PM');
 
@@ -590,6 +677,137 @@ void main() {
         expect(
             calendarMatches.any((match) => match.text == '11.06.2026'), isTrue);
         expect(calendarMatches.any((match) => match.text == '18:00'), isTrue);
+      });
+    });
+
+    group('time ranges', () {
+      test('detects 24-hour time range', () {
+        final match = singleCalendarMatch('busy 18:00-19:00');
+
+        expect(match.text, '18:00-19:00');
+        expect(match.normalizedText, '2026-06-11T18:00:00/2026-06-11T19:00:00');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 11, 18, 0));
+        expect(value.end, DateTime(2026, 6, 11, 19, 0));
+        expect(value.duration, const Duration(hours: 1));
+        expect(value.hasDate, isFalse);
+        expect(value.hasTime, isTrue);
+      });
+
+      test('detects 24-hour time range with spaces', () {
+        final match = singleCalendarMatch('busy 18:00 - 19:30');
+
+        expect(match.text, '18:00 - 19:30');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 11, 18, 0));
+        expect(value.end, DateTime(2026, 6, 11, 19, 30));
+      });
+
+      test('detects AM/PM time range', () {
+        final match = singleCalendarMatch('busy 6 PM - 7 PM');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 11, 18, 0));
+        expect(value.end, DateTime(2026, 6, 11, 19, 0));
+      });
+
+      test('detects compact AM/PM time range', () {
+        final match = singleCalendarMatch('busy 6pm-7pm');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 11, 18, 0));
+        expect(value.end, DateTime(2026, 6, 11, 19, 0));
+      });
+
+      test('rejects invalid time range start', () {
+        final matches = detector().matches('busy 25:00-26:00');
+
+        expect(
+          matches.where((match) => match.type == DataMatchType.calendarEvent),
+          isEmpty,
+        );
+      });
+
+      test('rejects invalid time range end', () {
+        final matches = detector().matches('busy 18:00-26:00');
+
+        final calendarMatches = matches
+            .where((match) => match.type == DataMatchType.calendarEvent)
+            .toList();
+
+        expect(
+          calendarMatches.any((match) => match.text == '18:00-26:00'),
+          isFalse,
+        );
+      });
+
+      test('rejects reversed same-day time range', () {
+        final matches = detector().matches('busy 19:00-18:00');
+
+        final calendarMatches = matches
+            .where((match) => match.type == DataMatchType.calendarEvent)
+            .toList();
+
+        expect(
+          calendarMatches.any((match) => match.text == '19:00-18:00'),
+          isFalse,
+        );
+      });
+    });
+
+    group('date + time ranges', () {
+      test('merges relative date with time range', () {
+        final match = singleCalendarMatch(
+          'busy tomorrow 18:00-19:00',
+          useExtendedCalendarPatterns: true,
+        );
+
+        expect(match.text, 'tomorrow 18:00-19:00');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 12, 18, 0));
+        expect(value.end, DateTime(2026, 6, 12, 19, 0));
+        expect(value.duration, const Duration(hours: 1));
+        expect(value.hasDate, isTrue);
+        expect(value.hasTime, isTrue);
+      });
+
+      test('merges relative date with time range using at', () {
+        final match = singleCalendarMatch(
+          'busy tomorrow at 18:00-19:00',
+          useExtendedCalendarPatterns: true,
+        );
+
+        expect(match.text, 'tomorrow at 18:00-19:00');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 12, 18, 0));
+        expect(value.end, DateTime(2026, 6, 12, 19, 0));
+      });
+
+      test('merges dot-separated date with time range', () {
+        final match = singleCalendarMatch('busy 11.06.2026 18:00-19:00');
+
+        expect(match.text, '11.06.2026 18:00-19:00');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 11, 18, 0));
+        expect(value.end, DateTime(2026, 6, 11, 19, 0));
+      });
+
+      test('merges English month date with time range', () {
+        final match = singleCalendarMatch(
+          'busy June 11, 2026 6 PM - 7 PM',
+          useExtendedCalendarPatterns: true,
+        );
+
+        expect(match.text, 'June 11, 2026 6 PM - 7 PM');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 11, 18, 0));
+        expect(value.end, DateTime(2026, 6, 11, 19, 0));
       });
     });
 
@@ -930,6 +1148,16 @@ void main() {
     });
 
     group('custom pattern modes', () {
+      test('default constructor excludes English month and relative patterns',
+          () {
+        final matches = detector().matches('meet tomorrow or June 11, 2026');
+
+        expect(
+          matches.where((match) => match.type == DataMatchType.calendarEvent),
+          isEmpty,
+        );
+      });
+
       test('custom constructor uses only custom patterns', () {
         final calendarDetector = CalendarEventDetector.custom(
           patterns: const [],
@@ -952,6 +1180,30 @@ void main() {
         );
       });
 
+      test('extended constructor adds default additional patterns when omitted',
+          () {
+        final calendarDetector = CalendarEventDetector.extended(
+          options: CalendarEventDetectorOptions(
+            referenceDate: referenceDate,
+          ),
+        );
+
+        final dataDetector = DataDetector(
+          additionalRules: [
+            calendarDetector,
+          ],
+        );
+
+        final matches = dataDetector.matches('meet tomorrow and June 11, 2026');
+        final calendarMatches = matches
+            .where((match) => match.type == DataMatchType.calendarEvent)
+            .toList();
+
+        expect(calendarMatches, hasLength(2));
+        expect(calendarMatches[0].text, 'tomorrow');
+        expect(calendarMatches[1].text, 'June 11, 2026');
+      });
+
       test('extended constructor keeps defaults and additional patterns', () {
         final calendarDetector = CalendarEventDetector.extended(
           additionalPatterns: const [],
@@ -972,13 +1224,20 @@ void main() {
           matches.where((match) => match.type == DataMatchType.calendarEvent),
           hasLength(1),
         );
+
+        expect(
+          dataDetector.matches('meet tomorrow').where(
+                (match) => match.type == DataMatchType.calendarEvent,
+              ),
+          isEmpty,
+        );
       });
     });
 
     group('async API', () {
       test('streams calendar event matches through DataDetector async API',
           () async {
-        final dataDetector = detector();
+        final dataDetector = detector(useExtendedCalendarPatterns: true);
 
         final matches = await dataDetector
             .matchesAsync('meet tomorrow at 18:00')
@@ -997,7 +1256,7 @@ void main() {
       test('detects calendar events through string extension if supported', () {
         final matches = 'meet tomorrow at 18:00'.dataDetectorMatches(
           additionalRules: [
-            CalendarEventDetector(
+            CalendarEventDetector.extended(
               options: CalendarEventDetectorOptions(
                 referenceDate: referenceDate,
               ),

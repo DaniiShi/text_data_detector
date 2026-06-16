@@ -10,7 +10,7 @@ final class PhoneDetector implements DataDetectorRule {
   final PhoneDetectorOptions options;
 
   static final RegExp _strictCandidatePattern = RegExp(
-    r'''(?:^|[^0-9A-Za-z_+()-])(\+\d{1,3} \d{3} \d{3}-\d{2}-\d{2}|\+\d{1,3} \d{3} \d{3} \d{4}|\+\d{10,15}|\d ?\(\d{2,5}\) ?\d{3}-\d{2}-\d{2}|\d ?\(\d{2,5}\) ?\d{3}[- ]\d{4}|\(\d{2,5}\) ?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{3} \d{3} \d{4})''',
+    r'''(?:^|[^0-9A-Za-z_+()-]|(?=\+))(\+\d{1,3} \d{3} \d{3}-\d{2}-\d{2}|\+\d{1,3} \d{3} \d{3} \d{4}|\+\d{10,15}|\d ?\(\d{2,5}\) ?\d{3}-\d{2}-\d{2}|\d ?\(\d{2,5}\) ?\d{3}[- ]\d{4}|\(\d{2,5}\) ?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{3} \d{3} \d{4})''',
   );
 
   /// Dispatches to strict or loose parsing according to [options].
@@ -336,13 +336,20 @@ final class PhoneDetector implements DataDetectorRule {
   }
 
   static bool _hasCleanBoundaries(String text, int start, int end) {
-    if (start > 0 && _isTokenCodeUnit(text.codeUnitAt(start - 1))) {
+    if (start > 0 &&
+        _isTokenCodeUnit(text.codeUnitAt(start - 1)) &&
+        !_canStartAfterToken(text, start)) {
       return false;
     }
     if (end < text.length && _isTokenCodeUnit(text.codeUnitAt(end))) {
       return false;
     }
     return true;
+  }
+
+  static bool _canStartAfterToken(String text, int start) {
+    return text.codeUnitAt(start) == 0x2b &&
+        _isAsciiLetter(text.codeUnitAt(start - 1));
   }
 
   static String _digitsOnly(String value) {
@@ -367,6 +374,11 @@ final class PhoneDetector implements DataDetectorRule {
 
   static bool _isAsciiDigit(int codeUnit) {
     return codeUnit >= 0x30 && codeUnit <= 0x39;
+  }
+
+  static bool _isAsciiLetter(int codeUnit) {
+    return (codeUnit >= 0x41 && codeUnit <= 0x5a) ||
+        (codeUnit >= 0x61 && codeUnit <= 0x7a);
   }
 
   static bool _isTokenCodeUnit(int codeUnit) {

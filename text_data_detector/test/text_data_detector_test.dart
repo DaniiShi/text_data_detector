@@ -650,6 +650,28 @@ void main() {
       ]);
     });
 
+    test('detects plus-prefixed phones immediately after letters', () {
+      expect(detector.matches('Call+19995551122'), [
+        const DataDetectorMatch(
+          type: DataMatchType.phoneNumber,
+          start: 4,
+          end: 16,
+          text: '+19995551122',
+          normalizedText: '+19995551122',
+        ),
+      ]);
+
+      expect(detector.matches('dsafasd+19995551122'), [
+        const DataDetectorMatch(
+          type: DataMatchType.phoneNumber,
+          start: 7,
+          end: 19,
+          text: '+19995551122',
+          normalizedText: '+19995551122',
+        ),
+      ]);
+    });
+
     test('rejects digit runs without explicit phone signal', () {
       expect(detector.matches('ignore 79995551122 and 9995551122'), isEmpty);
     });
@@ -949,7 +971,7 @@ void main() {
 
     test('rejects short numeric patterns and embedded phones', () {
       expect(
-        detector.matches('date 2026-06-06, ssn 123-45-6789, id x+19995551122'),
+        detector.matches('date 2026-06-06, ssn 123-45-6789, id 1+19995551122'),
         isEmpty,
       );
     });
@@ -958,12 +980,23 @@ void main() {
       final referenceDate = DateTime(2026, 6, 11);
 
       late DataDetector calendarDetector;
+      late DataDetector extendedCalendarDetector;
 
       setUp(() {
         calendarDetector = DataDetector(
           baseRules: const [],
           additionalRules: [
             CalendarEventDetector(
+              options: CalendarEventDetectorOptions(
+                referenceDate: referenceDate,
+              ),
+            ),
+          ],
+        );
+        extendedCalendarDetector = DataDetector(
+          baseRules: const [],
+          additionalRules: [
+            CalendarEventDetector.extended(
               options: CalendarEventDetectorOptions(
                 referenceDate: referenceDate,
               ),
@@ -1000,7 +1033,7 @@ void main() {
       });
 
       test('detects English month-name dates', () {
-        final matches = calendarDetector.matches(
+        final matches = extendedCalendarDetector.matches(
           'Meet June 11, 2026 and 12 Jun 2026.',
         );
 
@@ -1011,7 +1044,8 @@ void main() {
       });
 
       test('resolves relative date plus time into one event', () {
-        final match = calendarDetector.matches('Meet tomorrow at 18:00').single;
+        final match =
+            extendedCalendarDetector.matches('Meet tomorrow at 18:00').single;
 
         expect(match.text, 'tomorrow at 18:00');
         expect(match.normalizedText, '2026-06-12T18:00:00');
@@ -1041,6 +1075,22 @@ void main() {
 
       test('does not treat bare numbers as time', () {
         expect(calendarDetector.matches('Meet at 6'), isEmpty);
+      });
+
+      test('detects time ranges', () {
+        final match = calendarDetector.matches('Busy 18:00 - 19:00').single;
+
+        expect(match.text, '18:00 - 19:00');
+        expect(match.normalizedText, '2026-06-11T18:00:00/2026-06-11T19:00:00');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 11, 18),
+            end: DateTime(2026, 6, 11, 19),
+            duration: const Duration(hours: 1),
+            hasTime: true,
+          ),
+        );
       });
 
       test('avoids common numeric false positives', () {
