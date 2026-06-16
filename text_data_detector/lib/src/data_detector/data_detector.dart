@@ -1,4 +1,5 @@
 import '../detectors/calendar/calendar_event_detector.dart';
+import '../detectors/calendar/calendar_event_detector_options.dart';
 import '../detectors/email/email_detector.dart';
 import '../detectors/phone/phone_detector.dart';
 import '../detectors/url/url_candidate.dart';
@@ -12,9 +13,8 @@ import 'data_detector_rule.dart';
 final class DataDetector {
   /// Creates a data detector.
   ///
-  /// If [baseRules] is omitted, link, email, and phone rules are used.
-  /// Calendar event detection is available through `CalendarEventDetector`,
-  /// but is opt-in because dates and times are more prone to false positives.
+  /// If [baseRules] is omitted, link, email, phone, and calendar event rules
+  /// are used.
   /// Pass an empty list to disable built-ins, or pass a custom base list to
   /// replace them. [additionalRules] are appended after the base list.
   factory DataDetector({
@@ -23,10 +23,12 @@ final class DataDetector {
     List<DataDetectorRule> additionalRules = const [],
   }) {
     final effectiveBaseRules = List<DataDetectorRule>.unmodifiable(
-      baseRules ?? _createDefaultBaseRules(options),
+      (baseRules ?? _createDefaultBaseRules(options)).map(
+        (rule) => _applyDetectorOptions(rule, options),
+      ),
     );
     final effectiveAdditionalRules = List<DataDetectorRule>.unmodifiable(
-      additionalRules,
+      additionalRules.map((rule) => _applyDetectorOptions(rule, options)),
     );
     return DataDetector._(
       options: options,
@@ -106,14 +108,26 @@ final class DataDetector {
       EmailDetector(
           hostProcessor: hostProcessor, options: options.emailOptions),
       PhoneDetector(options: options.phoneOptions),
+      CalendarEventDetector(options: options.calendarOptions),
     ];
+  }
+
+  static DataDetectorRule _applyDetectorOptions(
+    DataDetectorRule rule,
+    DataDetectorOptions options,
+  ) {
+    if (rule is CalendarEventDetector &&
+        rule.options == const CalendarEventDetectorOptions()) {
+      return rule.withOptions(options.calendarOptions);
+    }
+    return rule;
   }
 
   /// Builds the overlap weights used by this detector.
   ///
   /// Built-in defaults are included only for built-in rule classes present
-  /// in [baseRules]. Calendar gets a default weight when explicitly added,
-  /// because it is opt-in but still needs to resolve phone-like overlaps.
+  /// in [baseRules]. Calendar also gets a default weight when added as an
+  /// additional rule so it can resolve phone-like overlaps.
   /// User-provided weights then override those defaults and may also define
   /// custom match weights.
   static Map<DataMatchType, int> _createMatchWeights(

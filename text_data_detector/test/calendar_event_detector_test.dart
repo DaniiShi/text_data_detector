@@ -1167,6 +1167,7 @@ void main() {
         );
 
         final dataDetector = DataDetector(
+          baseRules: const [],
           additionalRules: [
             calendarDetector,
           ],

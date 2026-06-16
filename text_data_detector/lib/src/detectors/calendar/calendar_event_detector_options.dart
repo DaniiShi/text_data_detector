@@ -32,4 +32,18 @@ final class CalendarEventDetectorOptions {
 
   /// Highest accepted year.
   final int maxYear;
+
+  @override
+  bool operator ==(Object other) {
+    return other is CalendarEventDetectorOptions &&
+        other.referenceDate == referenceDate &&
+        other.numericDateOrder == numericDateOrder &&
+        other.minYear == minYear &&
+        other.maxYear == maxYear;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(referenceDate, numericDateOrder, minYear, maxYear);
+  }
 }

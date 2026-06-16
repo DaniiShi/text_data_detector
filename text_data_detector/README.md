@@ -10,7 +10,7 @@ Inspired by system data detector APIs such as iOS NSDataDetector, but implemente
 
 ## Features
 Detects links, email addresses, and phone numbers.
-Provides an opt-in calendar event detector for dates.
+Detects calendar events such as numeric dates, times, and time ranges.
 Returns stable start / end ranges for the original text.
 Provides normalized values such as https://example.com or Punycode-normalized IDN domains.
 Supports Unicode and IDN domains.
@@ -65,9 +65,13 @@ final detector = DataDetector(
     linkOptions: const LinkDetectorOptions(allowCustomSchemes: true),
     emailOptions: const EmailDetectorOptions(allowUnicodeLocalPart: true),
     phoneOptions: const PhoneDetectorOptions(mode: PhoneDetectionMode.loose),
+    calendarOptions: CalendarEventDetectorOptions(
+      referenceDate: DateTime(2026, 6, 11),
+    ),
     matchWeights: {
       DataMatchType.emailAddress: 100,
       DataMatchType.link: 90,
+      DataMatchType.calendarEvent: 85,
       DataMatchType.phoneNumber: 80,
     },
   ),
@@ -117,30 +121,27 @@ matching `String.substring(start, end)`.
 
 ## Calendar Events
 
-Calendar event detection is opt-in because date text has more false positive
-risk than links or email addresses:
+Calendar event detection is part of the default detector pipeline:
 
 ```dart
 final detector = DataDetector(
-  additionalRules: [
-    CalendarEventDetector.extended(
-      options: CalendarEventDetectorOptions(
-        referenceDate: DateTime(2026, 6, 11),
-        numericDateOrder: NumericDateOrder.dayMonthYear,
-      ),
+  options: DataDetectorOptions(
+    calendarOptions: CalendarEventDetectorOptions(
+      referenceDate: DateTime(2026, 6, 11),
+      numericDateOrder: NumericDateOrder.dayMonthYear,
     ),
-  ],
+  ),
 );
 
-final matches = detector.matches('Meet February 29, 2024');
+final matches = detector.matches('Meet 29.02.2024 at 18:00');
 ```
 
 This returns one `DataMatchType.calendarEvent` match with:
 
 ```dart
-match.text; // February 29, 2024
-match.normalizedText; // 2024-02-29
-match.calendarEvent?.start; // DateTime(2024, 2, 29)
+match.text; // 29.02.2024 at 18:00
+match.normalizedText; // 2024-02-29T18:00:00
+match.calendarEvent?.start; // DateTime(2024, 2, 29, 18)
 ```
 
 The default detector supports dot- and slash-separated numeric dates using
@@ -150,7 +151,8 @@ names, and relative dates such as `today`, `tomorrow`, `yesterday`,
 `3 days ago`, and `2 weeks ago` when no `additionalPatterns` are supplied.
 Relative dates are resolved using `referenceDate`.
 
-For custom calendar syntax, replace or extend the pattern pipeline:
+For English month names, relative dates, or custom calendar syntax, replace or
+extend the pattern pipeline:
 
 ```dart
 final customOnly = CalendarEventDetector.custom(
@@ -162,6 +164,12 @@ final extended = CalendarEventDetector.extended(
 );
 
 final extendedWithBuiltInExtras = CalendarEventDetector.extended();
+
+final detectorWithEnglishDates = DataDetector(
+  additionalRules: [
+    CalendarEventDetector.extended(),
+  ],
+);
 ```
 
 ## Custom Detection
@@ -173,8 +181,8 @@ rules.
 `DataDetector` has two rule lists:
 
 - `baseRules` replaces the built-in base rule pipeline. If omitted, link, email,
-  and phone rules are used. Pass `baseRules: const []` to disable all
-  built-ins.
+  phone, and calendar event rules are used. Pass `baseRules: const []` to
+  disable all built-ins.
 - `additionalRules` appends application-specific rules after the base rule
   pipeline.
 

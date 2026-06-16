@@ -677,7 +677,12 @@ void main() {
     });
 
     test('rejects dot-separated numbers as phones', () {
-      expect(detector.matches('date 11.06.2026'), isEmpty);
+      expect(
+        detector.matches('date 11.06.2026').where(
+              (match) => match.type == DataMatchType.phoneNumber,
+            ),
+        isEmpty,
+      );
     });
 
     test('detects loose phones by digit count', () async {
@@ -722,7 +727,12 @@ void main() {
         ),
       );
 
-      expect(looseDetector.matches('date 11.06.2026'), isEmpty);
+      expect(
+        looseDetector.matches('date 11.06.2026').where(
+              (match) => match.type == DataMatchType.phoneNumber,
+            ),
+        isEmpty,
+      );
     });
 
     test('uses custom loose phone digit limits', () async {
@@ -1005,8 +1015,31 @@ void main() {
         );
       });
 
-      test('is opt-in and not enabled by default', () {
-        expect(detector.matches('Meet tomorrow at 18:00'), isEmpty);
+      test('detects calendar events by default', () {
+        final matches = detector.matches('Meet 11.06.2026 at 18:00');
+        final calendarMatches = matches
+            .where((match) => match.type == DataMatchType.calendarEvent)
+            .toList();
+
+        expect(calendarMatches, hasLength(1));
+        expect(calendarMatches.single.text, '11.06.2026 at 18:00');
+      });
+
+      test('uses calendar options from DataDetectorOptions', () {
+        final monthFirstDetector = DataDetector(
+          options: DataDetectorOptions(
+            calendarOptions: CalendarEventDetectorOptions(
+              referenceDate: referenceDate,
+              numericDateOrder: NumericDateOrder.monthDayYear,
+            ),
+          ),
+        );
+
+        final match = monthFirstDetector.matches('Meet 01/02/2026').singleWhere(
+              (match) => match.type == DataMatchType.calendarEvent,
+            );
+
+        expect(match.normalizedText, '2026-01-02');
       });
 
       test('does not detect dash-separated dates by default', () {

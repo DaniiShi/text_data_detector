@@ -33,6 +33,14 @@ final class CalendarEventDetector implements DataDetectorRule {
   /// Pattern pipeline used by this detector.
   final List<CalendarPattern> patterns;
 
+  /// Returns a detector with the same pattern pipeline and different options.
+  CalendarEventDetector withOptions(CalendarEventDetectorOptions options) {
+    return CalendarEventDetector.custom(
+      patterns: patterns,
+      options: options,
+    );
+  }
+
   /// Default calendar patterns for the MVP detector.
   static const defaultCalendarPatterns = <CalendarPattern>[
     NumericDatePattern(),
