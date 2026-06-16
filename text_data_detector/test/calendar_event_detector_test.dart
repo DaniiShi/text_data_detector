@@ -811,9 +811,62 @@ void main() {
       });
     });
 
+    group('date ranges', () {
+      test('merges dot-separated date range with dash', () {
+        final match = singleCalendarMatch('busy 11.06.2026 - 12.06.2026');
+
+        expect(match.text, '11.06.2026 - 12.06.2026');
+        expect(match.normalizedText, '2026-06-11/2026-06-12');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 11));
+        expect(value.end, DateTime(2026, 6, 12));
+        expect(value.duration, const Duration(days: 1));
+        expect(value.hasDate, isTrue);
+        expect(value.hasTime, isFalse);
+        expect(value.isAllDay, isTrue);
+      });
+
+      test('does not merge date range with word separator', () {
+        final matches = detector().matches('busy 11.06.2026 to 12.06.2026');
+        final calendarMatches = matches
+            .where((match) => match.type == DataMatchType.calendarEvent)
+            .toList();
+
+        expect(calendarMatches, hasLength(2));
+        expect(calendarMatches[0].text, '11.06.2026');
+        expect(calendarMatches[1].text, '12.06.2026');
+      });
+
+      test('merges slash-separated date range with dash', () {
+        final match = singleCalendarMatch('busy 11/06/2026 - 13/06/2026');
+
+        expect(match.text, '11/06/2026 - 13/06/2026');
+
+        final value = calendarValue(match);
+        expect(value.start, DateTime(2026, 6, 11));
+        expect(value.end, DateTime(2026, 6, 13));
+      });
+
+      test('does not merge reversed date range', () {
+        final matches = detector().matches('busy 13.06.2026 - 11.06.2026');
+        final calendarMatches = matches
+            .where((match) => match.type == DataMatchType.calendarEvent)
+            .toList();
+
+        expect(calendarMatches, hasLength(2));
+        expect(
+          calendarMatches.any(
+            (match) => match.text == '13.06.2026 - 11.06.2026',
+          ),
+          isFalse,
+        );
+      });
+    });
+
     group('multiple calendar events', () {
-      test('detects multiple dates in one text', () {
-        final matches = detector().matches('from 11.06.2026 to 12.06.2026');
+      test('detects multiple separate dates in one text', () {
+        final matches = detector().matches('from 11.06.2026 and 12.06.2026');
 
         final calendarMatches = matches
             .where((match) => match.type == DataMatchType.calendarEvent)

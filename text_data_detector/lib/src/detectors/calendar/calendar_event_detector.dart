@@ -70,6 +70,7 @@ final class CalendarEventDetector implements DataDetectorRule {
       candidates.addAll(pattern.find(text, context));
     }
 
+    candidates.addAll(_mergeDateRanges(text, candidates));
     candidates.addAll(_mergeDateWithFollowingTime(text, candidates));
     final resolved = _resolveOverlaps(candidates);
 
@@ -144,11 +145,52 @@ final class CalendarEventDetector implements DataDetectorRule {
     return merged;
   }
 
+  static List<CalendarCandidate> _mergeDateRanges(
+    String text,
+    List<CalendarCandidate> candidates,
+  ) {
+    final dates = candidates.where((candidate) {
+      return candidate.kind == CalendarCandidateKind.date;
+    }).toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+
+    final merged = <CalendarCandidate>[];
+    for (var i = 0; i < dates.length - 1; i++) {
+      final startDate = dates[i];
+      final endDate = dates[i + 1];
+      if (endDate.start < startDate.end) {
+        continue;
+      }
+      final gap = text.substring(startDate.end, endDate.start);
+      if (!_isDateRangeGap(gap) || !endDate.value.isAfter(startDate.value)) {
+        continue;
+      }
+
+      merged.add(
+        CalendarCandidate(
+          kind: CalendarCandidateKind.dateRange,
+          start: startDate.start,
+          end: endDate.end,
+          text: text.substring(startDate.start, endDate.end),
+          value: startDate.value,
+          endValue: endDate.value,
+          hasDate: true,
+          hasTime: false,
+        ),
+      );
+    }
+    return merged;
+  }
+
   static bool _isMergeGap(String gap) {
     return RegExp(
       r'^\s*(?:(?:,\s*)?at\s*|,\s*)?$',
       caseSensitive: false,
     ).hasMatch(gap);
+  }
+
+  static bool _isDateRangeGap(String gap) {
+    return RegExp(r'^\s*(?:-|–|—)\s*$').hasMatch(gap);
   }
 
   static List<CalendarCandidate> _resolveOverlaps(
@@ -202,6 +244,7 @@ final class CalendarEventDetector implements DataDetectorRule {
       CalendarCandidateKind.dateTimeRange => 50,
       CalendarCandidateKind.dateTime => 40,
       CalendarCandidateKind.timeRange => 30,
+      CalendarCandidateKind.dateRange => 25,
       CalendarCandidateKind.date => 20,
       CalendarCandidateKind.time => 10,
     };
@@ -253,7 +296,14 @@ final class CalendarParsingContext {
 }
 
 /// Calendar candidate kind.
-enum CalendarCandidateKind { date, time, dateTime, timeRange, dateTimeRange }
+enum CalendarCandidateKind {
+  date,
+  time,
+  dateTime,
+  dateRange,
+  timeRange,
+  dateTimeRange,
+}
 
 /// Internal calendar candidate.
 final class CalendarCandidate {

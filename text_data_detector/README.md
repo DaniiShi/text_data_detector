@@ -145,7 +145,8 @@ match.calendarEvent?.start; // DateTime(2024, 2, 29, 18)
 ```
 
 The default detector supports dot- and slash-separated numeric dates using
-configurable DMY, MDY, or YMD order, plus time-only values and time ranges.
+configurable DMY, MDY, or YMD order; date ranges such as
+`11.06.2026 - 12.06.2026`; plus time-only values and time ranges.
 `CalendarEventDetector.extended()` adds English full and abbreviated month
 names, and relative dates such as `today`, `tomorrow`, `yesterday`,
 `3 days ago`, and `2 weeks ago` when no `additionalPatterns` are supplied.

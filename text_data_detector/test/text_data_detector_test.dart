@@ -1042,6 +1042,25 @@ void main() {
         expect(match.normalizedText, '2026-01-02');
       });
 
+      test('detects date ranges by default', () {
+        final match = detector
+            .matches('Busy 11.06.2026 - 12.06.2026')
+            .singleWhere((match) => match.type == DataMatchType.calendarEvent);
+
+        expect(match.text, '11.06.2026 - 12.06.2026');
+        expect(match.normalizedText, '2026-06-11/2026-06-12');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 11),
+            end: DateTime(2026, 6, 12),
+            duration: const Duration(days: 1),
+            hasDate: true,
+            isAllDay: true,
+          ),
+        );
+      });
+
       test('does not detect dash-separated dates by default', () {
         expect(calendarDetector.matches('Meet on 2026-06-11.'), isEmpty);
         expect(calendarDetector.matches('Meet on 11-06-2026.'), isEmpty);
