@@ -1,4 +1,4 @@
-﻿## text_data_detector
+﻿# text_data_detector
 
 [![Dart CI](https://github.com/DaniiShi/text_data_detector/actions/workflows/dart.yml/badge.svg)](https://github.com/DaniiShi/text_data_detector/actions/workflows/dart.yml)
 
@@ -14,7 +14,7 @@ Detects calendar events such as numeric dates, times, and time ranges.
 Returns stable start / end ranges for the original text.
 Provides normalized values such as https://example.com or Punycode-normalized IDN domains.
 Supports Unicode and IDN domains.
-Supports custom detectors for mentions, hashtags, order numbers, dates, or app-specific patterns.
+Supports custom detectors for mentions, hashtags, order numbers, or app-specific patterns.
 Works without Flutter plugins, native code, or platform channels.
 
 ## Usage
@@ -41,8 +41,8 @@ Result:
     type: DataMatchType.link,
     start: 6,
     end: 17,
-    text: example.com,
-    normalizedText: https://example.com,
+    text: 'example.com',
+    normalizedText: 'https://example.com',
   ),
   DataDetectorMatch(
     type: DataMatchType.emailAddress,
@@ -57,7 +57,7 @@ Result:
 
 ![Text data detector example](screenshots/flutter_example.png)
 
-## API Shape
+## Configuration
 
 ```dart
 final detector = DataDetector(
@@ -149,7 +149,10 @@ configurable DMY, MDY, or YMD order; date ranges such as
 `11.06.2026 - 12.06.2026`; plus time-only values and time ranges.
 `CalendarEventDetector.extended()` adds English full and abbreviated month
 names, and relative dates such as `today`, `tomorrow`, `yesterday`,
-`3 days ago`, and `2 weeks ago` when no `additionalPatterns` are supplied.
+`3 days ago`, and `2 weeks ago` when `additionalPatterns` is omitted or
+explicitly set to `null`. Passing `additionalPatterns: const []` disables
+these built-in English extras; a non-empty list uses only the supplied extra
+patterns alongside the default numeric-date and time patterns.
 Relative dates are resolved using `referenceDate`.
 
 For English month names, relative dates, or custom calendar syntax, replace or
@@ -165,6 +168,10 @@ final extended = CalendarEventDetector.extended(
 );
 
 final extendedWithBuiltInExtras = CalendarEventDetector.extended();
+
+final extendedWithoutExtras = CalendarEventDetector.extended(
+  additionalPatterns: const [],
+);
 
 final detectorWithEnglishDates = DataDetector(
   additionalRules: [
@@ -249,57 +256,12 @@ final detector = DataDetector(
 
 ## Link Detection
 
-The link detector uses a staged pipeline:
+The detector supports URLs with and without explicit schemes, ports, paths,
+standard URI schemes, IDN domains, and optional custom schemes.
 
-1. Find broad link candidates with a regex.
-2. Treat explicit `scheme://...` candidates as strong link signals after
-   validating the scheme with `^[a-zA-Z][a-zA-Z0-9+.-]*$`.
-3. By default, accept standard schemes such as `http`, `https`, `ftp`, `ftps`,
-   `ws`, and `wss`.
-4. With `LinkDetectorOptions(allowCustomSchemes: true)`, also accept deep-link
-   schemes such as `tg://...` and `myapp://...`.
-5. For candidates without an explicit scheme, validate host syntax and require
-   an ending from the generated Public Suffix buckets. Multi-label suffixes such
-   as `gov.uk` and `github.io` are accepted as link-like text even when they
-   appear by themselves.
-6. Return `DataDetectorMatch` objects with original ranges and normalized link
-   text.
-
-Examples:
-
-```text
-example.com        -> https://example.com
-example.co.uk      -> https://example.co.uk
-gov.uk             -> https://gov.uk
-github.io          -> https://github.io
-ftp://example.com/file -> ftp://example.com/file
-tg://resolve?domain=test -> accepted with allowCustomSchemes
-myapp://profile/123 -> accepted with allowCustomSchemes
-http://127.0.0.1 -> http://127.0.0.1
-example.com:8080/path -> https://example.com:8080/path
-com                -> rejected, single-label TLD
-ф.ф                -> rejected, unknown public suffix
-localhost          -> rejected
-dev.local          -> rejected
-bad_scheme://x     -> rejected, invalid scheme
-```
-
-```dart
-final detector = DataDetector(
-  options: const DataDetectorOptions(
-    linkOptions: LinkDetectorOptions(allowCustomSchemes: true),
-  ),
-);
-```
-
-IDN hosts are normalized to ASCII/Punycode before Public Suffix List matching
-and before building `normalizedText`, while `DataDetectorMatch.text`, `start`,
-and `end` still point to the original user text:
-
-```text
-ds.vermögensberater       -> https://ds.xn--vermgensberater-ctb
-ds.xn--vermgensberater-ctb -> https://ds.xn--vermgensberater-ctb
-```
+Bare hosts must end with a known public suffix. Unicode host labels are
+normalized to Punycode in `normalizedText`, while `text`, `start`, and `end`
+continue to reference the original input.
 
 ## Email Detection
 

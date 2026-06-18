@@ -17,8 +17,8 @@ final class CalendarEventDetector implements DataDetectorRule {
 
   /// Creates a detector using default patterns plus [additionalPatterns].
   ///
-  /// When [additionalPatterns] is omitted, English month-name and relative date
-  /// patterns are added.
+  /// When [additionalPatterns] is `null`, English month-name and relative date
+  /// patterns are added. Passing an empty list adds no extra patterns.
   CalendarEventDetector.extended({
     List<CalendarPattern>? additionalPatterns,
     this.options = const CalendarEventDetectorOptions(),
@@ -48,8 +48,8 @@ final class CalendarEventDetector implements DataDetectorRule {
     TimePattern(),
   ];
 
-  /// Extra calendar patterns used by [CalendarEventDetector.extended] when no
-  /// custom additional patterns are supplied.
+  /// Extra patterns used by [CalendarEventDetector.extended] when
+  /// `additionalPatterns` is `null`.
   static const defaultAdditionalCalendarPatterns = <CalendarPattern>[
     EnglishMonthNameDatePattern(),
     EnglishRelativeDatePattern(),
@@ -348,7 +348,7 @@ final class NumericDatePattern implements CalendarPattern {
   const NumericDatePattern();
 
   static final RegExp _pattern = RegExp(
-    r'(?<![\d.])(\d{1,4})([./])(\d{1,2})\2(\d{1,4})(?!\d)',
+    r'(?<![A-Za-z\d.])(\d{1,4})([./])(\d{1,2})\2(\d{1,4})(?![A-Za-z\d])',
   );
 
   @override

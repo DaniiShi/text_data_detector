@@ -935,16 +935,6 @@ void main() {
 
         expect(match.text, '11.06.2026');
       });
-
-      test('does not detect date embedded in letters before', () {
-        final matches = detector().matches('abc2026-06-11');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          isEmpty,
-        );
-      });
-
       test('does not detect date embedded in letters after', () {
         final matches = detector().matches('2026-06-11abc');
 
@@ -952,6 +942,17 @@ void main() {
           matches.where((match) => match.type == DataMatchType.calendarEvent),
           isEmpty,
         );
+      });
+      test('does not detect date embedded in letters before', () {
+        expect(detector().matches('abc11.06.2026'), isEmpty);
+      });
+
+      test('does not detect date embedded in letters after', () {
+        expect(detector().matches('11.06.2026abc'), isEmpty);
+      });
+
+      test('does not detect numeric date embedded in digits', () {
+        expect(detector().matches('111.06.20261'), isEmpty);
       });
 
       test('does not detect time embedded in digits before', () {
@@ -1152,7 +1153,7 @@ void main() {
           () {
         final matches = detector(
           includeBuiltIns: true,
-        ).matches('open example.com/2026-06-11');
+        ).matches('open example.com/2026.06.11');
 
         final linkMatches =
             matches.where((match) => match.type == DataMatchType.link).toList();
@@ -1185,7 +1186,7 @@ void main() {
       test('does not detect date-like text inside email local part', () {
         final matches = detector(
           includeBuiltIns: true,
-        ).matches('mail 2026-06-11@example.com');
+        ).matches('mail 2026.06.11@example.com');
 
         final emailMatches = matches
             .where((match) => match.type == DataMatchType.emailAddress)
@@ -1258,7 +1259,7 @@ void main() {
         expect(calendarMatches[1].text, 'June 11, 2026');
       });
 
-      test('extended constructor keeps defaults and additional patterns', () {
+      test('extended constructor adds no extras for an empty list', () {
         final calendarDetector = CalendarEventDetector.extended(
           additionalPatterns: const [],
           options: CalendarEventDetectorOptions(
@@ -1272,19 +1273,14 @@ void main() {
           ],
         );
 
-        final matches = dataDetector.matches('meet 11.06.2026');
-
-        expect(
-          matches.where((match) => match.type == DataMatchType.calendarEvent),
-          hasLength(1),
+        final matches =
+            dataDetector.matches('meet 11.06.2026, tomorrow, June 11, 2026');
+        final calendarMatches = matches.where(
+          (match) => match.type == DataMatchType.calendarEvent,
         );
 
-        expect(
-          dataDetector.matches('meet tomorrow').where(
-                (match) => match.type == DataMatchType.calendarEvent,
-              ),
-          isEmpty,
-        );
+        expect(calendarMatches, hasLength(1));
+        expect(calendarMatches.single.text, '11.06.2026');
       });
     });
 

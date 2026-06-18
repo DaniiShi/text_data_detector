@@ -1,6 +1,6 @@
 name: text_data_detector
 description: A pure Dart detector for URLs, email addresses, phone numbers, and custom text patterns.
-version: 0.0.1
+version: 0.1.0
 
 repository: https://github.com/DaniiShi/text_data_detector/tree/main/text_data_detector
 issue_tracker: https://github.com/DaniiShi/text_data_detector/issues

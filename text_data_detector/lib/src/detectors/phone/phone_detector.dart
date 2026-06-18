@@ -10,8 +10,9 @@ final class PhoneDetector implements DataDetectorRule {
   final PhoneDetectorOptions options;
 
   static final RegExp _strictCandidatePattern = RegExp(
-    r'''(?:^|[^0-9A-Za-z_+()-]|(?=\+))(\+\d{1,3} \d{3} \d{3}-\d{2}-\d{2}|\+\d{1,3} \d{3} \d{3} \d{4}|\+\d{10,15}|\d ?\(\d{2,5}\) ?\d{3}-\d{2}-\d{2}|\d ?\(\d{2,5}\) ?\d{3}[- ]\d{4}|\(\d{2,5}\) ?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{3} \d{3} \d{4})''',
+    r'''(?:^|[^0-9A-Za-z_+()-]|(?=\+))(\+\d{1,3} ?\(\d{2,5}\) ?\d{3}(?:-\d{2}-\d{2}|-\d{4})|\+\d{1,3} \d{3} \d{3}-\d{2}-\d{2}|\+\d{1,3}(?: \d{2,6}){2,4}|\+\d{7,15}|\d ?\(\d{2,5}\) ?\d{3}-\d{2}-\d{2}|\d ?\(\d{2,5}\) ?\d{3}[- ]\d{4}|\(\d{2,5}\) ?\d{3}-\d{4}|\d{3}-\d{3}-\d{4}|\d{3} \d{3} \d{4})''',
   );
+  static final RegExp _separatedLeadingPlusPattern = RegExp(r'\+\s+\d+\s+$');
 
   /// Dispatches to strict or loose parsing according to [options].
   @override
@@ -198,8 +199,26 @@ final class PhoneDetector implements DataDetectorRule {
         digits.length > options.maxDigits) {
       return null;
     }
+    if (options.mode == PhoneDetectionMode.strict &&
+        !_hasValidInternationalLength(candidate, digits, options)) {
+      return null;
+    }
 
     return candidate.startsWith('+') ? '+$digits' : digits;
+  }
+
+  static bool _hasValidInternationalLength(
+    String candidate,
+    String digits,
+    PhoneDetectorOptions options,
+  ) {
+    if (!candidate.startsWith('+') || candidate.contains(RegExp(r'[ ()-]'))) {
+      return true;
+    }
+    if (digits.length == options.minDigits) {
+      return true;
+    }
+    return !digits.startsWith('1') || digits.length == 11;
   }
 
   /// Ensures a candidate contains only phone characters supported by parser.
@@ -336,20 +355,36 @@ final class PhoneDetector implements DataDetectorRule {
   }
 
   static bool _hasCleanBoundaries(String text, int start, int end) {
+    if (_hasSeparatedLeadingPlus(text, start)) {
+      return false;
+    }
     if (start > 0 &&
         _isTokenCodeUnit(text.codeUnitAt(start - 1)) &&
         !_canStartAfterToken(text, start)) {
       return false;
     }
-    if (end < text.length && _isTokenCodeUnit(text.codeUnitAt(end))) {
+    if (end < text.length &&
+        _isTokenCodeUnit(text.codeUnitAt(end)) &&
+        !_isClosingWrapper(text, start, end)) {
       return false;
     }
     return true;
   }
 
+  static bool _hasSeparatedLeadingPlus(String text, int start) {
+    return _separatedLeadingPlusPattern.hasMatch(text.substring(0, start));
+  }
+
+  static bool _isClosingWrapper(String text, int start, int end) {
+    return text.codeUnitAt(end) == 0x29 &&
+        start > 0 &&
+        text.codeUnitAt(start - 1) == 0x28;
+  }
+
   static bool _canStartAfterToken(String text, int start) {
     return text.codeUnitAt(start) == 0x2b &&
-        _isAsciiLetter(text.codeUnitAt(start - 1));
+        (_isAsciiLetter(text.codeUnitAt(start - 1)) ||
+            text.codeUnitAt(start - 1) == 0x28);
   }
 
   static String _digitsOnly(String value) {

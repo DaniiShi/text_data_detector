@@ -685,6 +685,148 @@ void main() {
       );
     });
 
+    group('strict rejected syntax', () {
+      final rejected = [
+        '+',
+        '++19995551122',
+        '+-19995551122',
+        '+1+9995551122',
+        '+1 999 555 1122+',
+        '(999 555-1122',
+        '999) 555-1122',
+        '((999)) 555-1122',
+        '999--555--1122',
+        '999..555..1122',
+        '999 - - 555 - 1122',
+        '+ 1 999 555 1122',
+      ];
+
+      for (final raw in rejected) {
+        test('rejects malformed phone: $raw', () {
+          expect(
+            detector.matches(raw).where(
+                  (match) => match.type == DataMatchType.phoneNumber,
+                ),
+            isEmpty,
+          );
+        });
+      }
+    });
+
+    group('strict accepted', () {
+      test('detects common international formats', () {
+        final cases = <(String, String)>[
+          ('+1 999 555 1122', '+19995551122'),
+          ('+1 (999) 555-1122', '+19995551122'),
+          ('+44 20 7946 0958', '+442079460958'),
+          ('+49 30 123456', '+4930123456'),
+          ('+7 (999) 555-11-22', '+79995551122'),
+        ];
+
+        for (final (raw, normalized) in cases) {
+          expectSinglePhone(
+            detector,
+            'Call $raw now',
+            text: raw,
+            normalized: normalized,
+          );
+        }
+      });
+
+      test('detects phone surrounded by punctuation', () {
+        for (final input in [
+          'Call (+1 999 555-11-22).',
+          'Call [+1 999 555-11-22]',
+          'Call: +1 999 555-11-22;',
+          '" +1 999 555-11-22 "',
+        ]) {
+          final matches = detector
+              .matches(input)
+              .where((match) => match.type == DataMatchType.phoneNumber)
+              .toList();
+
+          expect(matches, hasLength(1), reason: input);
+          expect(matches.single.text, '+1 999 555-11-22');
+        }
+      });
+
+      test('keeps original range', () {
+        const input = 'before +1 (999) 555-1122 after';
+
+        final match = detector.matches(input).single;
+
+        expect(
+          input.substring(match.start, match.end),
+          '+1 (999) 555-1122',
+        );
+      });
+    });
+
+    group('phone boundaries', () {
+      test('rejects phone embedded between digits', () {
+        expect(detector.matches('1+199955511229'), isEmpty);
+      });
+
+      test('rejects unprefixed phone embedded in letters', () {
+        expect(detector.matches('abc999-555-1122xyz'), isEmpty);
+      });
+
+      test('does not consume trailing digits', () {
+        expect(
+          detector.matches('+19995551122123'),
+          isEmpty,
+        );
+      });
+
+      test('detects multiple separated phones', () {
+        final matches = detector.matches(
+          'Call +19995551122 or +442079460958',
+        );
+
+        expect(matches.map((match) => match.normalizedText), [
+          '+19995551122',
+          '+442079460958',
+        ]);
+      });
+
+      test('keeps adjacent phones separate when punctuation separates them',
+          () {
+        final matches = detector.matches(
+          '+19995551122, +442079460958',
+        );
+
+        expect(matches, hasLength(2));
+      });
+    });
+
+    group('strict digit count', () {
+      test('rejects too few digits even with plus', () {
+        expect(detector.matches('+123456'), isEmpty);
+      });
+
+      test('rejects more than 15 digits', () {
+        expect(detector.matches('+1234567890123456'), isEmpty);
+      });
+
+      test('accepts configured minimum number of digits', () {
+        final custom = DataDetector(
+          options: const DataDetectorOptions(
+            phoneOptions: PhoneDetectorOptions(
+              minDigits: 7,
+              maxDigits: 15,
+            ),
+          ),
+        );
+
+        expectSinglePhone(
+          custom,
+          'Call +1234567',
+          text: '+1234567',
+          normalized: '+1234567',
+        );
+      });
+    });
+
     test('detects loose phones by digit count', () async {
       final looseDetector = DataDetector(
         options: const DataDetectorOptions(
@@ -1156,6 +1298,22 @@ void main() {
       });
     });
   });
+}
+
+void expectSinglePhone(
+  DataDetector detector,
+  String input, {
+  required String text,
+  required String normalized,
+}) {
+  final matches = detector
+      .matches(input)
+      .where((match) => match.type == DataMatchType.phoneNumber)
+      .toList();
+
+  expect(matches, hasLength(1), reason: input);
+  expect(matches.single.text, text);
+  expect(matches.single.normalizedText, normalized);
 }
 
 final class _MentionDetector implements DataDetectorRule {
