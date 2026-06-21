@@ -1,3 +1,4 @@
+import '../detectors/calendar/calendar_event_detector_options.dart';
 import '../detectors/email/email_detector_options.dart';
 import '../detectors/phone/phone_detector_options.dart';
 import '../detectors/url/url_detector_options.dart';
@@ -10,6 +11,7 @@ final class DataDetectorOptions {
     this.linkOptions = const LinkDetectorOptions(),
     this.emailOptions = const EmailDetectorOptions(),
     this.phoneOptions = const PhoneDetectorOptions(),
+    this.calendarOptions = const CalendarEventDetectorOptions(),
     this.matchWeights = const {},
   });
 
@@ -25,11 +27,15 @@ final class DataDetectorOptions {
   /// Phone detector behavior, including strict vs loose matching.
   final PhoneDetectorOptions phoneOptions;
 
+  /// Calendar detector behavior, used by `CalendarEventDetector` rules that do
+  /// not provide their own options.
+  final CalendarEventDetectorOptions calendarOptions;
+
   /// Priority for resolving overlapping entities.
   ///
   /// Higher weight wins. If weights are equal, the longer range wins. Built-in
   /// rules in `DataDetector.baseRules` get default weights unless
-  /// overridden here: email 100, link 90, phone 80. Custom match types default
-  /// to 0 unless a weight is provided here.
+  /// overridden here: email 100, link 90, calendar 85, phone 80. Custom match
+  /// types default to 0 unless a weight is provided here.
   final Map<DataMatchType, int> matchWeights;
 }

@@ -650,8 +650,181 @@ void main() {
       ]);
     });
 
+    test('detects plus-prefixed phones immediately after letters', () {
+      expect(detector.matches('Call+19995551122'), [
+        const DataDetectorMatch(
+          type: DataMatchType.phoneNumber,
+          start: 4,
+          end: 16,
+          text: '+19995551122',
+          normalizedText: '+19995551122',
+        ),
+      ]);
+
+      expect(detector.matches('dsafasd+19995551122'), [
+        const DataDetectorMatch(
+          type: DataMatchType.phoneNumber,
+          start: 7,
+          end: 19,
+          text: '+19995551122',
+          normalizedText: '+19995551122',
+        ),
+      ]);
+    });
+
     test('rejects digit runs without explicit phone signal', () {
       expect(detector.matches('ignore 79995551122 and 9995551122'), isEmpty);
+    });
+
+    test('rejects dot-separated numbers as phones', () {
+      expect(
+        detector.matches('date 11.06.2026').where(
+              (match) => match.type == DataMatchType.phoneNumber,
+            ),
+        isEmpty,
+      );
+    });
+
+    group('strict rejected syntax', () {
+      final rejected = [
+        '+',
+        '++19995551122',
+        '+-19995551122',
+        '+1+9995551122',
+        '+1 999 555 1122+',
+        '(999 555-1122',
+        '999) 555-1122',
+        '((999)) 555-1122',
+        '999--555--1122',
+        '999..555..1122',
+        '999 - - 555 - 1122',
+        '+ 1 999 555 1122',
+      ];
+
+      for (final raw in rejected) {
+        test('rejects malformed phone: $raw', () {
+          expect(
+            detector.matches(raw).where(
+                  (match) => match.type == DataMatchType.phoneNumber,
+                ),
+            isEmpty,
+          );
+        });
+      }
+    });
+
+    group('strict accepted', () {
+      test('detects common international formats', () {
+        final cases = <(String, String)>[
+          ('+1 999 555 1122', '+19995551122'),
+          ('+1 (999) 555-1122', '+19995551122'),
+          ('+44 20 7946 0958', '+442079460958'),
+          ('+49 30 123456', '+4930123456'),
+          ('+7 (999) 555-11-22', '+79995551122'),
+        ];
+
+        for (final (raw, normalized) in cases) {
+          expectSinglePhone(
+            detector,
+            'Call $raw now',
+            text: raw,
+            normalized: normalized,
+          );
+        }
+      });
+
+      test('detects phone surrounded by punctuation', () {
+        for (final input in [
+          'Call (+1 999 555-11-22).',
+          'Call [+1 999 555-11-22]',
+          'Call: +1 999 555-11-22;',
+          '" +1 999 555-11-22 "',
+        ]) {
+          final matches = detector
+              .matches(input)
+              .where((match) => match.type == DataMatchType.phoneNumber)
+              .toList();
+
+          expect(matches, hasLength(1), reason: input);
+          expect(matches.single.text, '+1 999 555-11-22');
+        }
+      });
+
+      test('keeps original range', () {
+        const input = 'before +1 (999) 555-1122 after';
+
+        final match = detector.matches(input).single;
+
+        expect(
+          input.substring(match.start, match.end),
+          '+1 (999) 555-1122',
+        );
+      });
+    });
+
+    group('phone boundaries', () {
+      test('rejects phone embedded between digits', () {
+        expect(detector.matches('1+199955511229'), isEmpty);
+      });
+
+      test('rejects unprefixed phone embedded in letters', () {
+        expect(detector.matches('abc999-555-1122xyz'), isEmpty);
+      });
+
+      test('does not consume trailing digits', () {
+        expect(
+          detector.matches('+19995551122123'),
+          isEmpty,
+        );
+      });
+
+      test('detects multiple separated phones', () {
+        final matches = detector.matches(
+          'Call +19995551122 or +442079460958',
+        );
+
+        expect(matches.map((match) => match.normalizedText), [
+          '+19995551122',
+          '+442079460958',
+        ]);
+      });
+
+      test('keeps adjacent phones separate when punctuation separates them',
+          () {
+        final matches = detector.matches(
+          '+19995551122, +442079460958',
+        );
+
+        expect(matches, hasLength(2));
+      });
+    });
+
+    group('strict digit count', () {
+      test('rejects too few digits even with plus', () {
+        expect(detector.matches('+123456'), isEmpty);
+      });
+
+      test('rejects more than 15 digits', () {
+        expect(detector.matches('+1234567890123456'), isEmpty);
+      });
+
+      test('accepts configured minimum number of digits', () {
+        final custom = DataDetector(
+          options: const DataDetectorOptions(
+            phoneOptions: PhoneDetectorOptions(
+              minDigits: 7,
+              maxDigits: 15,
+            ),
+          ),
+        );
+
+        expectSinglePhone(
+          custom,
+          'Call +1234567',
+          text: '+1234567',
+          normalized: '+1234567',
+        );
+      });
     });
 
     test('detects loose phones by digit count', () async {
@@ -687,6 +860,21 @@ void main() {
           normalizedText: '+19995551122',
         ),
       ]);
+    });
+
+    test('rejects dot-separated numbers as loose phones', () async {
+      final looseDetector = DataDetector(
+        options: const DataDetectorOptions(
+          phoneOptions: PhoneDetectorOptions(mode: PhoneDetectionMode.loose),
+        ),
+      );
+
+      expect(
+        looseDetector.matches('date 11.06.2026').where(
+              (match) => match.type == DataMatchType.phoneNumber,
+            ),
+        isEmpty,
+      );
     });
 
     test('uses custom loose phone digit limits', () async {
@@ -935,11 +1123,197 @@ void main() {
 
     test('rejects short numeric patterns and embedded phones', () {
       expect(
-        detector.matches('date 2026-06-06, ssn 123-45-6789, id x+19995551122'),
+        detector.matches('date 2026-06-06, ssn 123-45-6789, id 1+19995551122'),
         isEmpty,
       );
     });
+
+    group('CalendarEventDetector', () {
+      final referenceDate = DateTime(2026, 6, 11);
+
+      late DataDetector calendarDetector;
+      late DataDetector extendedCalendarDetector;
+
+      setUp(() {
+        calendarDetector = DataDetector(
+          baseRules: const [],
+          additionalRules: [
+            CalendarEventDetector(
+              options: CalendarEventDetectorOptions(
+                referenceDate: referenceDate,
+              ),
+            ),
+          ],
+        );
+        extendedCalendarDetector = DataDetector(
+          baseRules: const [],
+          additionalRules: [
+            CalendarEventDetector.extended(
+              options: CalendarEventDetectorOptions(
+                referenceDate: referenceDate,
+              ),
+            ),
+          ],
+        );
+      });
+
+      test('detects calendar events by default', () {
+        final matches = detector.matches('Meet 11.06.2026 at 18:00');
+        final calendarMatches = matches
+            .where((match) => match.type == DataMatchType.calendarEvent)
+            .toList();
+
+        expect(calendarMatches, hasLength(1));
+        expect(calendarMatches.single.text, '11.06.2026 at 18:00');
+      });
+
+      test('uses calendar options from DataDetectorOptions', () {
+        final monthFirstDetector = DataDetector(
+          options: DataDetectorOptions(
+            calendarOptions: CalendarEventDetectorOptions(
+              referenceDate: referenceDate,
+              numericDateOrder: NumericDateOrder.monthDayYear,
+            ),
+          ),
+        );
+
+        final match = monthFirstDetector.matches('Meet 01/02/2026').singleWhere(
+              (match) => match.type == DataMatchType.calendarEvent,
+            );
+
+        expect(match.normalizedText, '2026-01-02');
+      });
+
+      test('detects date ranges by default', () {
+        final match = detector
+            .matches('Busy 11.06.2026 - 12.06.2026')
+            .singleWhere((match) => match.type == DataMatchType.calendarEvent);
+
+        expect(match.text, '11.06.2026 - 12.06.2026');
+        expect(match.normalizedText, '2026-06-11/2026-06-12');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 11),
+            end: DateTime(2026, 6, 12),
+            duration: const Duration(days: 1),
+            hasDate: true,
+            isAllDay: true,
+          ),
+        );
+      });
+
+      test('does not detect dash-separated dates by default', () {
+        expect(calendarDetector.matches('Meet on 2026-06-11.'), isEmpty);
+        expect(calendarDetector.matches('Meet on 11-06-2026.'), isEmpty);
+      });
+
+      test('detects numeric dates using configured date order', () {
+        final dayFirst = calendarDetector.matches('Meet 01/02/2026').single;
+        final monthFirst = DataDetector(
+          baseRules: const [],
+          additionalRules: [
+            CalendarEventDetector(
+              options: CalendarEventDetectorOptions(
+                referenceDate: referenceDate,
+                numericDateOrder: NumericDateOrder.monthDayYear,
+              ),
+            ),
+          ],
+        ).matches('Meet 01/02/2026').single;
+
+        expect(dayFirst.normalizedText, '2026-02-01');
+        expect(monthFirst.normalizedText, '2026-01-02');
+      });
+
+      test('detects English month-name dates', () {
+        final matches = extendedCalendarDetector.matches(
+          'Meet June 11, 2026 and 12 Jun 2026.',
+        );
+
+        expect(matches.map((match) => match.normalizedText), [
+          '2026-06-11',
+          '2026-06-12',
+        ]);
+      });
+
+      test('resolves relative date plus time into one event', () {
+        final match =
+            extendedCalendarDetector.matches('Meet tomorrow at 18:00').single;
+
+        expect(match.text, 'tomorrow at 18:00');
+        expect(match.normalizedText, '2026-06-12T18:00:00');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 12, 18),
+            hasDate: true,
+            hasTime: true,
+          ),
+        );
+      });
+
+      test('detects time-only with reference date', () {
+        final match = calendarDetector.matches('Meet at 6:30pm').single;
+
+        expect(match.text, '6:30pm');
+        expect(match.normalizedText, '2026-06-11T18:30:00');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 11, 18, 30),
+            hasTime: true,
+          ),
+        );
+      });
+
+      test('does not treat bare numbers as time', () {
+        expect(calendarDetector.matches('Meet at 6'), isEmpty);
+      });
+
+      test('detects time ranges', () {
+        final match = calendarDetector.matches('Busy 18:00 - 19:00').single;
+
+        expect(match.text, '18:00 - 19:00');
+        expect(match.normalizedText, '2026-06-11T18:00:00/2026-06-11T19:00:00');
+        expect(
+          match.calendarEvent,
+          CalendarEventValue(
+            start: DateTime(2026, 6, 11, 18),
+            end: DateTime(2026, 6, 11, 19),
+            duration: const Duration(hours: 1),
+            hasTime: true,
+          ),
+        );
+      });
+
+      test('avoids common numeric false positives', () {
+        expect(
+          calendarDetector.matches(
+            'version 1.2.3 Flutter 3.32.1 price 12.50 '
+            'id 20260611 number 123456',
+          ),
+          isEmpty,
+        );
+      });
+    });
   });
+}
+
+void expectSinglePhone(
+  DataDetector detector,
+  String input, {
+  required String text,
+  required String normalized,
+}) {
+  final matches = detector
+      .matches(input)
+      .where((match) => match.type == DataMatchType.phoneNumber)
+      .toList();
+
+  expect(matches, hasLength(1), reason: input);
+  expect(matches.single.text, text);
+  expect(matches.single.normalizedText, normalized);
 }
 
 final class _MentionDetector implements DataDetectorRule {

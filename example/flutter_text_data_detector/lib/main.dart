@@ -42,11 +42,19 @@ final class _DetectorScreenState extends State<DetectorScreen> {
     text: 'Visit example.com or https://flutter.dev',
   );
   final _detector = DataDetector(
-    additionalRules: const [MentionDetector(), HashtagDetector()],
+    additionalRules: [
+      CalendarEventDetector.extended(),
+      MentionDetector(),
+      HashtagDetector(),
+    ],
     options: DataDetectorOptions(
       linkOptions: const LinkDetectorOptions(allowCustomSchemes: true),
       phoneOptions: const PhoneDetectorOptions(mode: PhoneDetectionMode.loose),
-      matchWeights: {mentionType: 200, hashtagType: 90},
+      matchWeights: {
+        mentionType: 200,
+        hashtagType: 90,
+        DataMatchType.calendarEvent: 70,
+      },
     ),
   );
   final _messages = <ClassifiedMessage>[];
@@ -61,6 +69,8 @@ final class _DetectorScreenState extends State<DetectorScreen> {
     'Release notes: https://example.com:8443/releases?q=stable',
     'Deep links: tg://resolve?domain=test and myapp://profile/123',
     'Ping @alice about #dart and #flutter',
+    'Important dates: tomorrow and February 29, 2024',
+    'Release dates: 11.06.2026 and 06/12/2026',
   ];
 
   @override
@@ -352,9 +362,9 @@ final class MessageBubble extends StatelessWidget {
   ) async {
     final uri = _uriForEntity(entity);
     if (uri == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${entity.type}: ${entity.text}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${entity.type}: ${entity.normalizedText}')),
+      );
       return;
     }
 
@@ -363,9 +373,9 @@ final class MessageBubble extends StatelessWidget {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Could not open ${entity.text}')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Could not open ${entity.normalizedText}')),
+    );
   }
 
   Uri? _uriForEntity(DataDetectorMatch entity) {
